@@ -1,0 +1,26 @@
+[package]
+name = "glider-pro"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Glider PRO (John Calhoun, 1994) in the terminal, based on Aerofoil, for the Asciiverse catalog"
+license = "GPL-2.0-only"
+publish = false
+
+[[bin]]
+name = "glider-pro"
+path = "src/main.rs"
+
+[dependencies]
+ratatui = "0.30"
+log = "0.4"
+env_logger = "0.11"
+rodio = { version = "0.22", default-features = false, features = ["playback"] }
+gilrs = { version = "0.11", optional = true }
+
+[features]
+default = ["gamepad"]
+gamepad = ["dep:gilrs"]
+
+[profile.release]
+debug = 1
