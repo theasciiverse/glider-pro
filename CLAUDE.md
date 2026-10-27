@@ -26,8 +26,14 @@ record it.
   `GpApp/` (53.5k lines, about 25k of it gameplay; the rest editor, dialogs,
   platform). The port follows Aerofoil's code (64-bit, endian-clean, bug fixes),
   checked against Calhoun's where they differ.
-- Licence field: GPL-2.0-only until it is settled whether Calhoun's "GPL 2" allows
-  later versions.
+- Licence: GPL-2.0-or-later. Calhoun's own commit 8b2a88d (2016-01-31) is titled and
+  reads "GPL 2 or later"; the same day b4aaee9 ("License has full-text.") swapped in the
+  full GPLv2 text and the README now says "GPL 2", read as shorthand, not a retraction.
+  Aerofoil reads it the same way. So the game can be used under GPLv3 too, which
+  matters for Apache-2.0 libraries such as notcurses (Apache's own page: the FSF "has
+  never considered the Apache License to be compatible with GPL version 2"; it is with
+  GPLv3). A confirming note to Calhoun would be a courtesy, not a blocker (David's
+  call, 2026-10-27: no hair-splitting).
 - No terminal port of Glider PRO existed (searched 2026-10-27).
 
 ## Data (all read directly, nothing extracted)
