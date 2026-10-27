@@ -63,26 +63,55 @@ per "validate before generalizing") with Glider PRO's additions (BinHex, opcodes
 and 0x9A, 322-pixel rooms, masks as separate pictures). `house.rs`, `assets.rs`,
 `main.rs` (for now a house explorer: arrows move between rooms, H next house, V view).
 
-## Plan: translating Aerofoil's GpApp
+## Plan (decided 2026-10-27, paused until David comes back to it)
 
-Done: data layer, room backgrounds (DrawRoomBackground). Next, in order:
+**Build on Aerofoil's C++ and give it a terminal, instead of translating to Rust.**
+Why, from the measurements of 2026-10-27:
 
-1. StructuresInit/2 (sprite sheets and source rects), ObjectDraw, ObjectDraw2,
-   ObjectDrawAll, ObjectRects: the rooms with their objects.
-2. Room, Objects, House (room setup, the master object list, links), Render.
-3. Player, Interactions, Play, Modes, Input: the glider flying.
-4. Dynamics, Dynamics2, Dynamics3, DynamicMaps (enemies), Triggers, Transit, Trip,
-   Grease, RubberBands, Scoreboard, Marquee, Banner.
-5. Sound, Music, GameOver, HighScores, SavedGames, SelectHouse, the title screen.
-6. The silhouette view and terminal text, as in `games/glider`.
+- Aerofoil's gameplay is Calhoun's code line for line: Player 10 of 1,412 lines
+  changed, Interactions 12 of 1,611, Dynamics 22 of 693, RubberBands 2 of 273 (whitespace
+  normalised). The bigger diffs (ObjectDraw 363 of 1,186, Play, Render) are where
+  Aerofoil swapped the Mac's drawing calls for its own.
+- Calhoun's C on its own needs the classic Mac Toolbox (QuickDraw, Resource, Sound,
+  Memory and File Managers, dialogs, QuickTime): that is Aerofoil's 31k-line
+  PortabilityLayer. Calhoun's C + notcurses would mean rewriting it. Translating to
+  Rust would be about 25k lines plus debugging every difference.
+- Aerofoil keeps the platform behind small driver interfaces (`GpCommon/`):
+  `IGpDisplayDriver` (about 20 methods: surfaces the game draws into, DrawSurface,
+  palette, cursor), `IGpInputDriver` (ProcessInput posting `GpVOSEvent`s),
+  `IGpAudioDriver` (the SDL2 one works without a window), fonts, file system.
+  Linux builds through CMake (`AerofoilX` target, SDL2). SDL2 2.32, CMake, g++ and
+  (from David, 2026-10-27) `libnotcurses-dev` are installed here.
 
-Not planned: the house editor (ObjectEdit, ObjectInfo, ObjectAdd, RoomInfo,
-HouseInfo, HouseLegal, Link, Map, Tools, Scrap, SourceExport).
+Steps:
+
+1. Build Aerofoil as it is (`cmake`, `make AerofoilX`; building external code needs
+   David's approval in auto mode). Work out the data conversion on Linux: Aerofoil
+   plays converted data (`.gpa` etc.) made by `ConvertResources.bat` (Windows) from
+   CMake tools (MiniRez, hqx2gp, gpr2gpa, HouseTool, MergeGPF); MacPorts packages
+   Aerofoil, so a non-Windows route exists. Not yet checked.
+2. Rebase `games/glider-pro` onto Aerofoil's history (`aerofoil` remote), keeping
+   Calhoun's as `calhoun` for reference. The Rust start (`src/`, data layer and
+   explorer) is dropped; its PICT and BinHex readers live on in `games/glider`.
+3. A notcurses display driver: compose the game's surfaces into a frame, show it with
+   a pixel blitter (kitty graphics, Sixel) where the terminal has one, else sextants,
+   octants, Braille or half blocks. Only the central room needs every cell (Glider PRO
+   draws the 3x3 rooms around it on a big screen; for the terminal, show the room).
+4. A notcurses input driver: keys with releases (kitty protocol), mouse; and the
+   key-repeat fallback from `games/glider`.
+5. Menus, dialogs and the high-score entry as terminal text (Aerofoil draws them as
+   640x480 pixels, unreadable at terminal size).
+6. Later: the silhouette view (needs small hooks in GpApp to know what is where),
+   terminal text for in-game numbers, as in `games/glider`.
+
+Licence for this: Aerofoil GPL-2.0-or-later, notcurses Apache-2.0 (fine with GPLv3,
+see Sources).
 
 ## Commands
 
 ```bash
-cargo run --release                         # the house explorer
+# the Rust house explorer, until step 2 replaces it
+cargo run --release
 cargo run --release -- --house "Teddy World" --room 3
 cargo run --release -- --shot --house Slumberland --room 5 --size 128x44
 cargo test --release
