@@ -82,21 +82,90 @@ files directly. Branch `main`; `asciiverse` stays on GitHub, unused.
 
 ## Modules
 
-- `mac.rs` (BinHex, resource forks, DeRez, PICT, snd), `house.rs`, `assets.rs`: data.
+- `mac.rs` (BinHex, resource forks, DeRez, PICT, snd), `house.rs` (house files; the
+  object union as typed views, `obj.a().state` / `obj.set_a(..)`), `assets.rs`: data.
 - `gfx.rs`: offscreen maps (GWorlds) of any size and the QuickDraw subset Glider PRO
   draws with (pen size, pattern and mode, regions, CopyBits, CopyMask, the 8-bit
-  palette). No text: text is terminal text.
-- `game/`: the translation. One `Game` struct holds Glider PRO's globals (C names in
-  snake_case); each C file becomes a module of `impl Game` with the C function names
-  in snake_case.
-- `view.rs`: maps to terminal cells.
+  palette `clut8`), plus the silhouette view's ink and `fore` layer. No text.
+- `game/`: the translation, 16k lines. One `Game` (mod.rs) holds Glider PRO's globals
+  (C names in snake_case); each C file is a module of `impl Game` with the C function
+  names in snake_case (`defs.rs`: GliderDefines.h, `kFloorVent` = `FLOOR_VENT`;
+  `rect_utils.rs`: RectUtils.c and the Toolbox's rect calls). Conventions at the top of
+  mod.rs. Translated 2026-11-06 by five parallel agents (groups: player/interactions,
+  dynamics/render, objects/rooms, object drawing, game flow), then integrated.
+- `ScreenIo` (mod.rs): what the C's blocking waits need from the terminal (DelayTicks,
+  WaitForInputEvent, the high score name). `main.rs` lends the terminal to the game
+  for each call that may wait (`lend`) and takes it back.
+- `PlayGame`'s loop is `play_game_frame` (one frame), called every 2 ticks by
+  `main.rs`; `new_game` sets up, `play_game_finish` is what follows the loop.
+- `view.rs`: `games/glider`'s view, unchanged but for a local `Canvas` (one room's
+  pixels and silhouettes) and `soften_backdrop`.
+- `input.rs`, `audio.rs` (three effect channels and music, as Glider PRO's Sound
+  Manager channels; reports channels that ended so `sound_finished` /
+  `music_piece_finished` run as the C callbacks), `save.rs`.
+
+## Screen and coordinates
+
+`thisMac.screen` is 512 x 362, so houseRect (the work and back maps) is 512 x 342
+and the one room sits at (0, 20)-(512, 342) (`localRoomsDest[kCentralRoom]`), under
+the scoreboard's 20 rows; the terminal shows that rectangle of the main window. The
+scoreboard's figures (room, gliders, score) are shown as the status line
+(`board_title`, `board_gliders`, `board_score`), other text as `Game::label`s.
+
+## Views (V switches, saved)
+
+- **Original**: Calhoun's art in half blocks.
+- **Silhouette** (default, as Glider): sprites drawn into the work map go through
+  `copy_mask_ink` with an ink from `Game::sil` (by source map: glider white, foil, toast,
+  balloons, darts, ...), recorded in the maps' `fore` layer, which copies along work ->
+  main; the view draws those cells with Glider's shape matcher. The room's background
+  is softened (Glider's blur and dim) wherever it still shows: `draw_locale` keeps the
+  bare background (`room_backdrop`) before the objects are drawn, and the view swaps
+  in its softened copy pixel by pixel. Objects keep their art. Not yet: flames, stars,
+  pendulums (drawn via saved maps), furniture flattened with box-drawn edges as in
+  Glider.
+
+## Controls
+
+Glider PRO's own defaults: left and right arrows, Down = battery (or helium), Up =
+rubber band; also A, D, S, W and Space; gamepad as in Glider. Kitty keyboard protocol
+for exact releases, else key repeats. Tab pauses (`do_pause` / `end_pause`), Q ends
+the game, V view. Title: Enter, L houses, T scores (the C's DoHighScores), D demo
+(Demo House from the 'demo' resource; also after two idle minutes, kIdleSplashTicks),
+H help, M sound, B music.
+
+## Saves
+
+`$XDG_DATA_HOME/glider-pro` (`GLIDER_PRO_DATA_DIR` overrides): `glider-pro.cfg`, and
+`scores/<house>.txt`, each house's table (the C kept it in the house file; houses here
+stay as shipped, as the C's locked houses, whose scores went to a file).
+`read_house` reads it over the house's own table; `test_high_score` writes it.
+
+## Testing without a person
+
+- `--frames N [HOUSE]` plays N frames headless. Env: `GLIDER_PRO_HOLD=right,batt`
+  (keys held), `GLIDER_PRO_DEMO=1` (the recorded demo), `GLIDER_PRO_TRACE=k`
+  (`_FROM=f`): the glider every k frames; `GLIDER_PRO_EVENTS=1`: room changes and lost
+  gliders; `GLIDER_PRO_SHOT=file.ppm`: the main window at the end.
+  `RUST_LOG=glider_pro=debug` logs every hot spot hit.
+- `cargo test --release`: data decodes, every built-in house plays 1500 frames four
+  ways and through a game's end (`every_house_plays`).
+- tmux on a private socket (`tmux -L gptest`), `send-keys`, `capture-pane -e -p -N`
+  (tmux carries colours over from the row before: a parser must too).
+
+## Known gaps (2026-11-07)
+
+- The demo drifts: in Demo House the glider dies in room 4 at frame 1766 (touches the
+  TV top) three frames before the recording steers away; under audit. The recording
+  is 1117 presses (kDemoLength is bytes), up to frame 3414.
+- Two-player games: translated, no keys for the second player yet.
+- Not seen yet in play: every object kind's drawing and behaviour in every house.
 
 ## Commands
 
 ```bash
-# the Rust house explorer, until step 2 replaces it
-cargo run --release
-cargo run --release -- --house "Teddy World" --room 3
-cargo run --release -- --shot --house Slumberland --room 5 --size 128x44
+cargo run --release                         # title screen; house from settings
+cargo run --release -- "Teddy World"
+cargo run --release -- --frames 600 Slumberland
 cargo test --release
 ```

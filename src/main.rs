@@ -402,7 +402,7 @@ fn draw_title(g: &mut Game) {
     g.labels.clear();
 }
 
-const TITLE_KEYS: &str = "Enter: play   L: houses   T: scores   H: help   M: sound   B: music   V: view   Q: quit";
+const TITLE_KEYS: &str = "Enter: play  L: houses  T: scores  D: demo  H: help  M: sound  B: music  V: view  Q: quit";
 
 fn title_lines(g: &Game, t: &Term) -> Vec<String> {
     let on = |b: bool| if b { "on" } else { "off" };
@@ -469,6 +469,7 @@ fn choose_house(term: &mut Term, g: &mut Game) -> Option<String> {
 
 fn run(slot: &mut Option<Box<Term>>, g: &mut Game, settings: &mut Settings) {
     loop {
+        let mut demo = false;
         // ---- the title
         {
             {
@@ -478,6 +479,7 @@ fn run(slot: &mut Option<Box<Term>>, g: &mut Game, settings: &mut Settings) {
             }
             draw_title(g);
             let mut help = false;
+            let mut idle_since = Instant::now();
             loop {
                 let term = slot.as_mut().expect("terminal");
                 term.overlay = if help { HELP_LINES.iter().map(|l| l.to_string()).collect() } else { title_lines(g, term) };
@@ -496,10 +498,22 @@ fn run(slot: &mut Option<Box<Term>>, g: &mut Game, settings: &mut Settings) {
                 }
                 let mut play = false;
                 let mut scores = false;
+                if !cmds.is_empty() {
+                    idle_since = Instant::now();
+                }
+                // kIdleSplashTicks: after two minutes on the title, the demo
+                if idle_since.elapsed() >= TICK * game::IDLE_SPLASH_TICKS as u32 {
+                    demo = true;
+                    play = true;
+                }
                 for c in cmds {
                     match c {
                         Cmd::Quit | Cmd::Back => return,
                         Cmd::Confirm => play = true,
+                        Cmd::Char('d' | 'D') => {
+                            demo = true;
+                            play = true;
+                        }
                         Cmd::Help => help = true,
                         Cmd::Sound => {
                             term.sound_on = !term.sound_on;
@@ -551,56 +565,89 @@ fn run(slot: &mut Option<Box<Term>>, g: &mut Game, settings: &mut Settings) {
         }
 
         // ---- a game
-        lend(slot, g, |g| g.new_game(game::NEW_GAME_MODE));
-        let mut next = Instant::now();
-        while g.playing && !g.quitting {
-            {
-                let term = slot.as_mut().expect("terminal");
-                term.read_events(next);
-                let cmds = term.take_cmds(g);
-                for c in &cmds {
-                    match c {
-                        Cmd::Pause => {
-                            if g.paused {
-                                g.end_pause();
-                            } else {
-                                g.do_pause();
-                            }
-                        }
-                        Cmd::Quit => {
-                            if g.paused {
-                                g.end_pause();
-                            }
-                            g.keys.quit = true;
-                        }
-                        Cmd::View => {
-                            settings.silhouette = !settings.silhouette;
-                            set_silhouette(g, settings.silhouette);
-                            settings.save();
-                        }
-                        _ => {}
-                    }
-                }
-                term.input.keys(Instant::now(), &mut g.keys);
-            }
-            if !g.paused {
-                g.ticks += game::TICKS_PER_FRAME;
-                lend(slot, g, |g| g.play_game_frame());
-                g.keys.quit = false;
-            }
-            let term = slot.as_mut().expect("terminal");
-            term.service_audio(g);
-            term.draw(g);
-            next += TICK * game::TICKS_PER_FRAME as u32;
-            let now = Instant::now();
-            if next < now {
-                next = now;
-            }
+        if demo {
+            demo_game(slot, g, settings);
+        } else {
+            play(slot, g, settings);
         }
         if g.quitting {
             return;
         }
-        lend(slot, g, |g| g.play_game_finish());
+    }
+}
+
+/// A game, from NewGame to its end (PlayGame and what follows it).
+fn play(slot: &mut Option<Box<Term>>, g: &mut Game, settings: &mut Settings) {
+    lend(slot, g, |g| g.new_game(game::NEW_GAME_MODE));
+    let mut next = Instant::now();
+    while g.playing && !g.quitting {
+        {
+            let term = slot.as_mut().expect("terminal");
+            term.read_events(next);
+            let cmds = term.take_cmds(g);
+            for c in &cmds {
+                match c {
+                    // the demo: any key ends it (as the arcade build's)
+                    Cmd::Any if g.demo_going => g.playing = false,
+                    Cmd::Pause => {
+                        if g.paused {
+                            g.end_pause();
+                        } else {
+                            g.do_pause();
+                        }
+                    }
+                    Cmd::Quit => {
+                        if g.paused {
+                            g.end_pause();
+                        }
+                        g.keys.quit = true;
+                    }
+                    Cmd::View => {
+                        settings.silhouette = !settings.silhouette;
+                        set_silhouette(g, settings.silhouette);
+                        settings.save();
+                    }
+                    _ => {}
+                }
+            }
+            term.input.keys(Instant::now(), &mut g.keys);
+        }
+        if !g.paused && g.playing {
+            g.ticks += game::TICKS_PER_FRAME;
+            lend(slot, g, |g| g.play_game_frame());
+            g.keys.quit = false;
+        }
+        let term = slot.as_mut().expect("terminal");
+        term.service_audio(g);
+        term.draw(g);
+        next += TICK * game::TICKS_PER_FRAME as u32;
+        let now = Instant::now();
+        if next < now {
+            next = now;
+        }
+    }
+    if g.quitting {
+        return;
+    }
+    lend(slot, g, |g| g.play_game_finish());
+}
+
+/// DoDemoGame: Demo House played from the recorded keys, then back to the
+/// house that was open.
+fn demo_game(slot: &mut Option<Box<Term>>, g: &mut Game, settings: &mut Settings) {
+    let was = g.this_house_name.clone();
+    if !load_house(g, "Demo House") {
+        return;
+    }
+    if let Some(t) = slot.as_mut() {
+        t.sounds.clear();
+    }
+    g.demo_going = true;
+    play(slot, g, settings);
+    g.demo_going = false;
+    load_house(g, &was);
+    if let Some(t) = slot.as_mut() {
+        t.sounds.clear();
     }
 }
 
@@ -641,6 +688,7 @@ fn smoke(a: Rc<Assets>, house: &str, frames: u32) {
         std::process::exit(1);
     };
     g.screen_io = Some(Box::new(NoIo));
+    g.demo_going = std::env::var_os("GLIDER_PRO_DEMO").is_some();
     if let Ok(h2) = std::env::var("GLIDER_PRO_SWITCH_TO") {
         load_house(&mut g, &h2);
     }
@@ -652,6 +700,7 @@ fn smoke(a: Rc<Assets>, house: &str, frames: u32) {
     let mut n = 0;
     // GLIDER_PRO_HOLD: keys held throughout, e.g. "right,band"
     let hold = std::env::var("GLIDER_PRO_HOLD").unwrap_or_default();
+    let (mut last_mortals, mut last_room) = (g.mortals, g.this_room_number);
     while n < frames && g.playing {
         g.keys.left = hold.contains("left");
         g.keys.right = hold.contains("right");
@@ -662,7 +711,15 @@ fn smoke(a: Rc<Assets>, house: &str, frames: u32) {
         g.sound_queue.clear();
         g.music_queue.clear();
         n += 1;
-        if std::env::var_os("GLIDER_PRO_TRACE").is_some() && n % 10 == 0 {
+        if std::env::var_os("GLIDER_PRO_EVENTS").is_some() && (g.mortals != last_mortals || g.this_room_number != last_room) {
+            let gl = &g.gliders[0];
+            eprintln!("frame {n}: room {} ({}) mortals {} mode {} dest {:?} score {}", g.this_room_number, mac::mac_roman(&g.this_room.name), g.mortals, gl.mode, gl.dest, g.the_score);
+            last_mortals = g.mortals;
+            last_room = g.this_room_number;
+        }
+        let every: u32 = std::env::var("GLIDER_PRO_TRACE").ok().and_then(|v| v.parse().ok()).unwrap_or(10);
+        let from: u32 = std::env::var("GLIDER_PRO_TRACE_FROM").ok().and_then(|v| v.parse().ok()).unwrap_or(0);
+        if std::env::var_os("GLIDER_PRO_TRACE").is_some() && n >= from && n % every.max(1) == 0 {
             let gl = &g.gliders[0];
             eprintln!("frame {n}: room {} mode {} dest {:?} vel ({}, {})", g.this_room_number, gl.mode, gl.dest, gl.h_vel, gl.v_vel);
         }
@@ -688,6 +745,42 @@ fn smoke(a: Rc<Assets>, house: &str, frames: u32) {
     }
     if !g.playing {
         g.play_game_finish();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every built-in house set up, played for a while with the keys held
+    /// in a few ways, and through to the end of a game, without a panic.
+    #[test]
+    fn every_house_plays() {
+        // SAFETY: tests here run this one test that touches the environment
+        unsafe { std::env::set_var("GLIDER_PRO_DATA_DIR", std::env::temp_dir().join("glider-pro-test")) };
+        let a = Rc::new(Assets::load());
+        for (name, _) in house::BUILT_IN {
+            for hold in [&[][..], &["right"], &["left", "batt"], &["right", "band"]] {
+                let mut g = new_game_state(a.clone(), name).unwrap_or_else(|| panic!("{name}"));
+                g.screen_io = Some(Box::new(NoIo));
+                g.new_game(game::NEW_GAME_MODE);
+                for _ in 0..1500 {
+                    if !g.playing {
+                        break;
+                    }
+                    g.keys.right = hold.contains(&"right");
+                    g.keys.left = hold.contains(&"left");
+                    g.keys.batt = hold.contains(&"batt");
+                    g.keys.band = hold.contains(&"band");
+                    g.ticks += game::TICKS_PER_FRAME;
+                    g.play_game_frame();
+                }
+                g.keys = Default::default();
+                g.keys.quit = true;
+                g.play_game_frame();
+                g.play_game_finish();
+            }
+        }
     }
 }
 
