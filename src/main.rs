@@ -783,6 +783,31 @@ fn smoke(a: Rc<Assets>, house: &str, frames: u32) {
 mod tests {
     use super::*;
 
+    /// Calhoun's recorded demo plays out as recorded: the first glider is
+    /// lost in room 4 (the TV, frame 1766, its fade done by 1781), the game
+    /// ends in room 15 just after the last press (frame 3414).
+    #[test]
+    fn the_demo_replays_as_recorded() {
+        let a = Rc::new(Assets::load());
+        let mut g = new_game_state(a, "Demo House").unwrap();
+        g.screen_io = Some(Box::new(NoIo));
+        g.demo_going = true;
+        g.new_game(game::NEW_GAME_MODE);
+        let (mut n, mut first_loss) = (0, None);
+        let start = g.mortals;
+        while g.playing && n < 5000 {
+            g.ticks += game::TICKS_PER_FRAME;
+            g.play_game_frame();
+            n += 1;
+            if first_loss.is_none() && g.mortals < start {
+                first_loss = Some((n, g.this_room_number));
+            }
+        }
+        assert_eq!(first_loss, Some((1781, 4)));
+        assert!(!g.playing);
+        assert_eq!((n, g.this_room_number), (3432, 15));
+    }
+
     /// Every built-in house set up, played for a while with the keys held
     /// in a few ways, and through to the end of a game, without a panic.
     #[test]
