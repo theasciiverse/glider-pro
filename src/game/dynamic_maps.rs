@@ -173,15 +173,20 @@ impl Game {
     // proper background.
 
     pub fn back_up_flames(&mut self, src: &Rect, index: i32) {
+        // (the silhouette view: flames are a hazard, drawn in ink)
+        let ink = self.sil("blower");
         let mut dest = Rect::default();
         q_set_rect(&mut dest, 0, 0, 16, 15);
         for i in 0..NUM_CANDLE_FLAMES as usize {
             if let Some(m) = self.saved_maps[index as usize].map.as_mut() {
+                if ink.is_some() && m.fore.is_empty() {
+                    m.enable_fore();
+                }
                 // Copy background to map.
                 m.copy_bits(&self.back_src_map, *src, dest);
 
                 // Copy flame to map.
-                m.copy_mask(&self.blower_src_map, &self.blower_mask_map, self.flame[i], self.flame[i], dest);
+                m.copy_mask_ink(ink, &self.blower_src_map, &self.blower_mask_map, self.flame[i], self.flame[i], dest);
             }
 
             q_offset_rect(&mut dest, 0, 15);
@@ -241,15 +246,20 @@ impl Game {
     // This is like the function BackUpFlames() but customized for Tiki torches.
 
     pub fn back_up_tiki_flames(&mut self, src: &Rect, index: i32) {
+        // (the silhouette view: flames are a hazard, drawn in ink)
+        let ink = self.sil("blower");
         let mut dest = Rect::default();
         q_set_rect(&mut dest, 0, 0, 8, 10);
         for i in 0..NUM_TIKI_FLAMES as usize {
             if let Some(m) = self.saved_maps[index as usize].map.as_mut() {
+                if ink.is_some() && m.fore.is_empty() {
+                    m.enable_fore();
+                }
                 // copy background to map
                 m.copy_bits(&self.back_src_map, *src, dest);
 
                 // copy flame to map
-                m.copy_mask(
+                m.copy_mask_ink(ink, 
                     &self.blower_src_map,
                     &self.blower_mask_map,
                     self.tiki_flame[i],
@@ -315,15 +325,20 @@ impl Game {
     // Another one - but for BBQ coals.
 
     pub fn back_up_bbq_coals(&mut self, src: &Rect, index: i32) {
+        // (the silhouette view: flames are a hazard, drawn in ink)
+        let ink = self.sil("blower");
         let mut dest = Rect::default();
         q_set_rect(&mut dest, 0, 0, 32, 9);
         for i in 0..NUM_BBQ_COALS as usize {
             if let Some(m) = self.saved_maps[index as usize].map.as_mut() {
+                if ink.is_some() && m.fore.is_empty() {
+                    m.enable_fore();
+                }
                 // copy background to map
                 m.copy_bits(&self.back_src_map, *src, dest);
 
                 // copy flame to map
-                m.copy_mask(&self.blower_src_map, &self.blower_mask_map, self.coals[i], self.coals[i], dest);
+                m.copy_mask_ink(ink, &self.blower_src_map, &self.blower_mask_map, self.coals[i], self.coals[i], dest);
             }
 
             q_offset_rect(&mut dest, 0, 9);
