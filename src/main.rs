@@ -411,7 +411,7 @@ fn draw_title(g: &mut Game) {
     g.labels.clear();
 }
 
-const TITLE_KEYS: &str = "Enter: play  L: houses  T: scores  D: demo  H: help  M: sound  B: music  V: view  Q: quit";
+const TITLE_KEYS: [&str; 2] = ["Enter: play   2: two players   D: demo   L: houses   T: scores", "H: help   M: sound   B: music   V: view   Q: quit"];
 
 fn title_lines(g: &Game, t: &Term) -> Vec<String> {
     let on = |b: bool| if b { "on" } else { "off" };
@@ -422,7 +422,8 @@ fn title_lines(g: &Game, t: &Term) -> Vec<String> {
         "Arrows fly: Down burns battery, Up fires a rubber band.".into(),
         format!("Sound {}, music {}, {} view (V).", on(t.sound_on), on(t.music_on), if g.silhouette { "silhouette" } else { "original" }),
         String::new(),
-        TITLE_KEYS.into(),
+        TITLE_KEYS[0].into(),
+        TITLE_KEYS[1].into(),
     ]
 }
 
@@ -437,6 +438,9 @@ const HELP_LINES: &[&str] = &[
     "Down          burn battery for a burst of speed, or helium to rise",
     "Up, Space     fire a rubber band (if you have any)",
     "Tab           pause          Q   end the game      V   switch view",
+    "",
+    "Two players (2 on the title): the second flies with A and D, S for",
+    "battery, W for a band. Delete gives up a glider stuck somewhere.",
     "",
     "Clocks and stars are points. Folded paper is an extra glider, foil",
     "a shield. Candles, toasters, outlets, darts and the rest are not",
@@ -523,6 +527,10 @@ fn run(slot: &mut Option<Box<Term>>, g: &mut Game, settings: &mut Settings) {
                             demo = true;
                             play = true;
                         }
+                        Cmd::Char('2') => {
+                            g.two_player_game = true;
+                            play = true;
+                        }
                         Cmd::Help => help = true,
                         Cmd::Sound => {
                             term.sound_on = !term.sound_on;
@@ -587,6 +595,9 @@ fn run(slot: &mut Option<Box<Term>>, g: &mut Game, settings: &mut Settings) {
 
 /// A game, from NewGame to its end (PlayGame and what follows it).
 fn play(slot: &mut Option<Box<Term>>, g: &mut Game, settings: &mut Settings) {
+    if let Some(t) = slot.as_mut() {
+        t.input.two = g.two_player_game;
+    }
     lend(slot, g, |g| g.new_game(game::NEW_GAME_MODE));
     let mut next = Instant::now();
     while g.playing && !g.quitting {
@@ -635,10 +646,13 @@ fn play(slot: &mut Option<Box<Term>>, g: &mut Game, settings: &mut Settings) {
             next = now;
         }
     }
-    if g.quitting {
-        return;
+    if !g.quitting {
+        lend(slot, g, |g| g.play_game_finish());
     }
-    lend(slot, g, |g| g.play_game_finish());
+    g.two_player_game = false;
+    if let Some(t) = slot.as_mut() {
+        t.input.two = false;
+    }
 }
 
 /// DoDemoGame: Demo House played from the recorded keys, then back to the
@@ -698,6 +712,7 @@ fn smoke(a: Rc<Assets>, house: &str, frames: u32) {
     };
     g.screen_io = Some(Box::new(NoIo));
     g.demo_going = std::env::var_os("GLIDER_PRO_DEMO").is_some();
+    g.two_player_game = std::env::var_os("GLIDER_PRO_TWO").is_some();
     if let Ok(h2) = std::env::var("GLIDER_PRO_SWITCH_TO") {
         load_house(&mut g, &h2);
     }
@@ -708,13 +723,16 @@ fn smoke(a: Rc<Assets>, house: &str, frames: u32) {
     g.new_game(game::NEW_GAME_MODE);
     let mut n = 0;
     // GLIDER_PRO_HOLD: keys held throughout, e.g. "right,band"
-    let hold = std::env::var("GLIDER_PRO_HOLD").unwrap_or_default();
+    let hold_s = std::env::var("GLIDER_PRO_HOLD").unwrap_or_default();
+    let hold: Vec<&str> = hold_s.split(',').collect();
     let (mut last_mortals, mut last_room) = (g.mortals, g.this_room_number);
     while n < frames && g.playing {
-        g.keys.left = hold.contains("left");
-        g.keys.right = hold.contains("right");
-        g.keys.batt = hold.contains("batt");
-        g.keys.band = hold.contains("band");
+        g.keys.left = hold.contains(&"left");
+        g.keys.right = hold.contains(&"right");
+        g.keys.batt = hold.contains(&"batt");
+        g.keys.band = hold.contains(&"band");
+        g.keys.left2 = hold.contains(&"left2");
+        g.keys.right2 = hold.contains(&"right2");
         g.ticks += game::TICKS_PER_FRAME;
         g.play_game_frame();
         g.sound_queue.clear();
@@ -731,6 +749,10 @@ fn smoke(a: Rc<Assets>, house: &str, frames: u32) {
         if std::env::var_os("GLIDER_PRO_TRACE").is_some() && n >= from && n % every.max(1) == 0 {
             let gl = &g.gliders[0];
             eprintln!("frame {n}: room {} mode {} dest {:?} vel ({}, {})", g.this_room_number, gl.mode, gl.dest, gl.h_vel, gl.v_vel);
+            if g.two_player_game {
+                let g2 = &g.gliders[1];
+                eprintln!("          glider 2 mode {} dest {:?} vel ({}, {})", g2.mode, g2.dest, g2.h_vel, g2.v_vel);
+            }
         }
     }
     let gl = &g.gliders[0];

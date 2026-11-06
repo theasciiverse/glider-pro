@@ -158,7 +158,7 @@ stay as shipped, as the C's locked houses, whose scores went to a file).
 - The demo drifts: in Demo House the glider dies in room 4 at frame 1766 (touches the
   TV top) three frames before the recording steers away; under audit. The recording
   is 1117 presses (kDemoLength is bytes), up to frame 3414.
-- Two-player games: translated, no keys for the second player yet.
+- Two-player games: 2 on the title; the second player has A, D, S, W (Glider PRO gave it the modifier keys, which a terminal cannot report alone). Without the kitty protocol only one key at a time counts as held, so two players need it.
 - Not seen yet in play: every object kind's drawing and behaviour in every house.
 
 ## Commands

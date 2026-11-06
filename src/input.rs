@@ -23,7 +23,12 @@ const LEFT: usize = 0;
 const RIGHT: usize = 1;
 const ENERGY: usize = 2;
 const BAND: usize = 3;
-const KEYS: usize = 4;
+/// The second player's (a two-player game): A, D, S, W.
+const LEFT2: usize = 4;
+const RIGHT2: usize = 5;
+const ENERGY2: usize = 6;
+const BAND2: usize = 7;
+const KEYS: usize = 8;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Cmd {
@@ -60,6 +65,10 @@ struct Key {
 
 pub struct Input {
     pub exact: bool,
+    /// A two-player game: A, D, S, W are the second player's.
+    pub two: bool,
+    /// Delete was pressed (in a two-player game, ForceKillGlider).
+    delete: bool,
     keys: [Key; KEYS],
     pub cmds: Vec<Cmd>,
     pub mouse_x: Option<i32>,
@@ -78,6 +87,8 @@ impl Input {
     pub fn new(exact: bool) -> Input {
         Input {
             exact,
+            two: false,
+            delete: false,
             keys: [Key::default(); KEYS],
             cmds: Vec::new(),
             mouse_x: None,
@@ -100,6 +111,10 @@ impl Input {
             return;
         }
         let which = match k.code {
+            KeyCode::Char('a' | 'A') if self.two => Some(LEFT2),
+            KeyCode::Char('d' | 'D') if self.two => Some(RIGHT2),
+            KeyCode::Char('s' | 'S') if self.two => Some(ENERGY2),
+            KeyCode::Char('w' | 'W') if self.two => Some(BAND2),
             KeyCode::Left | KeyCode::Char('a' | 'A') => Some(LEFT),
             KeyCode::Right | KeyCode::Char('d' | 'D') => Some(RIGHT),
             KeyCode::Down | KeyCode::Char('s' | 'S') => Some(ENERGY),
@@ -122,12 +137,15 @@ impl Input {
                 }
                 key.last = Some(now);
             }
-            if fresh && (d == LEFT || d == RIGHT) {
+            if fresh && matches!(d, LEFT | RIGHT | LEFT2 | RIGHT2) {
                 self.cmds.push(Cmd::Steer);
             }
         }
         if !press {
             return;
+        }
+        if fresh && k.code == KeyCode::Delete {
+            self.delete = true;
         }
         match k.code {
             KeyCode::Up => self.cmds.push(Cmd::Up),
@@ -250,12 +268,12 @@ impl Input {
                     self.cmds.push(Cmd::PadSteer);
                 }
                 self.stick = stick;
-                self.pad = [
+                self.pad[..4].copy_from_slice(&[
                     pad.is_pressed(Button::DPadLeft) || x < -0.4,
                     pad.is_pressed(Button::DPadRight) || x > 0.4,
                     pad.is_pressed(Button::East) || pad.is_pressed(Button::RightTrigger),
                     pad.is_pressed(Button::South) || pad.is_pressed(Button::West),
-                ];
+                ]);
             }
         }
     }
@@ -274,6 +292,11 @@ impl Input {
         k.right = held[RIGHT];
         k.batt = held[ENERGY];
         k.band = held[BAND];
+        k.left2 = held[LEFT2];
+        k.right2 = held[RIGHT2];
+        k.batt2 = held[ENERGY2];
+        k.band2 = held[BAND2];
+        k.delete = std::mem::take(&mut self.delete);
     }
 }
 

@@ -18,8 +18,8 @@ to Rust, his files read directly. 1.0.0 is when everything below is in.
 
 - [ ] The demo replays as recorded (it drifts in room 4)
 - [ ] Silhouettes for flames, stars, pendulums; furniture flat with box-drawn edges
-- [ ] Two-player games with keys for the second player
-- [ ] A house file from disk
+- [x] Two-player games: 2 on the title, A D S W for the second player
+- [x] A house file from disk
 - [ ] Played through by hand, house by house
 
 ## Later
