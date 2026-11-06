@@ -341,9 +341,61 @@ pub const BUILT_IN: &[(&str, &[u8])] = houses![
 ];
 
 pub fn load(name: &str) -> Option<House> {
-    let (_, text) = BUILT_IN.iter().find(|(n, _)| *n == name)?;
-    let (data, rsrc) = mac::binhex(text)?;
-    House::parse(&data, &rsrc)
+    if let Some((_, text)) = BUILT_IN.iter().find(|(n, _)| *n == name) {
+        let (data, rsrc) = mac::binhex(text)?;
+        return House::parse(&data, &rsrc);
+    }
+    load_file(std::path::Path::new(name))
+}
+
+/// A house file on disk: BinHex (`.hqx`, `.binhex`), MacBinary, or the
+/// bare data fork with its resource fork, if any, beside it (`name.rsrc`,
+/// `._name` from a Mac's AppleDouble, or `name/..namedfork/rsrc` on macOS).
+pub fn load_file(path: &std::path::Path) -> Option<House> {
+    let d = std::fs::read(path).ok()?;
+    if let Some((data, rsrc)) = mac::binhex(&d) {
+        return House::parse(&data, &rsrc);
+    }
+    // MacBinary: version 0, a name of 1 to 63 bytes, zeros at 74 and 82
+    if d.len() > 128 && d[0] == 0 && (1..=63).contains(&d[1]) && d[74] == 0 && d[82] == 0 {
+        let be = |at: usize| u32::from_be_bytes([d[at], d[at + 1], d[at + 2], d[at + 3]]) as usize;
+        let (dlen, rlen) = (be(83), be(87));
+        let rat = 128 + dlen.div_ceil(128) * 128;
+        if 128 + dlen <= d.len() && rat + rlen <= d.len() {
+            return House::parse(&d[128..128 + dlen], &d[rat..rat + rlen]);
+        }
+    }
+    let mut rsrc = Vec::new();
+    let name = path.file_name()?.to_string_lossy().to_string();
+    for side in [path.with_file_name(format!("{name}.rsrc")), path.join("..namedfork/rsrc")] {
+        if let Ok(r) = std::fs::read(&side) {
+            rsrc = r;
+            break;
+        }
+    }
+    if rsrc.is_empty()
+        && let Ok(ad) = std::fs::read(path.with_file_name(format!("._{name}")))
+    {
+        rsrc = apple_double_rsrc(&ad).unwrap_or_default();
+    }
+    House::parse(&d, &rsrc)
+}
+
+/// The resource fork entry (id 2) of an AppleDouble file.
+fn apple_double_rsrc(d: &[u8]) -> Option<Vec<u8>> {
+    if d.len() < 26 || d[0..4] != [0, 5, 0x16, 0x07] {
+        return None;
+    }
+    let n = u16::from_be_bytes([d[24], d[25]]) as usize;
+    for i in 0..n {
+        let e = 26 + i * 12;
+        let f = |at: usize| u32::from_be_bytes([d[at], d[at + 1], d[at + 2], d[at + 3]]) as usize;
+        if f(e) == 2 {
+            let (off, len) = (f(e + 4), f(e + 8));
+            return d.get(off..off + len).map(|s| s.to_vec());
+        }
+    }
+    None
 }
 
 #[cfg(test)]

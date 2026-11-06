@@ -39,7 +39,9 @@ nearly everything else is in the way.
 
 usage: glider-pro [options] [HOUSE]
 
-  HOUSE           a built-in house by name (\"Slumberland\")
+  HOUSE           a built-in house by name (\"Slumberland\") or a Glider PRO
+                  house file: BinHex, MacBinary, or the data fork with its
+                  resource fork beside it (NAME.rsrc, ._NAME)
   --houses        list the built-in houses
   --mute          no sound
   --frames N      run N frames of a game with no one at the keys, no
@@ -89,7 +91,14 @@ fn load_house(g: &mut Game, name: &str) -> bool {
         a.new_house();
     }
     g.house = h;
-    g.this_house_name = name.to_string();
+    // a file from disk is named as the Mac named it, without its suffix
+    let p = std::path::Path::new(name);
+    g.this_house_name = if p.exists() {
+        let stem = p.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default();
+        stem.trim_end_matches(".binhex").trim_end_matches(".hqx").trim_end_matches(".bin").to_string()
+    } else {
+        name.to_string()
+    };
     g.read_house()
 }
 
