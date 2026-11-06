@@ -1,199 +1,527 @@
 mod assets;
+mod audio;
+mod game;
 mod gfx;
 mod house;
+mod input;
 mod mac;
+mod save;
 mod view;
 
 use assets::Assets;
-use gfx::Canvas;
-use house::{House, ROOM_IS_EMPTY, Rect, TILE_HIGH, TILE_WIDE};
+use audio::Audio;
+use game::{Game, ScreenIo};
+use gfx::{Map, Rect};
+use input::{Cmd, Input};
 use ratatui::buffer::Buffer;
-use ratatui::crossterm::event::{self, Event, KeyCode, KeyEventKind};
+use ratatui::crossterm::event::{
+    self, DisableFocusChange, DisableMouseCapture, EnableFocusChange, EnableMouseCapture, Event, KeyboardEnhancementFlags, MouseButton,
+    MouseEventKind, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
+};
+use ratatui::crossterm::execute;
+use ratatui::crossterm::terminal::supports_keyboard_enhancement;
 use ratatui::layout::Rect as Area;
-use ratatui::style::{Color, Style};
+use ratatui::style::{Color, Modifier, Style};
+use save::Settings;
+use std::collections::{HashMap, VecDeque};
 use std::io;
+use std::rc::Rc;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
-const HELP: &str = "glider-pro: Glider PRO (John Calhoun, 1994) in the terminal, based on Aerofoil
+/// The Mac's tick.
+const TICK: Duration = Duration::from_micros(16_667);
 
-Work in progress: for now a house explorer. Arrows move between rooms
-(left and right along a floor, up and down between floors), Page Up and
-Page Down step through the rooms in order, H the next house, V the view,
-Q quits.
+const HELP: &str = "glider-pro: Glider PRO (John Calhoun, 1994) in the terminal
 
-usage: glider-pro [--house NAME] [--room N] [--shot [--size WxH]] [--blocks]
-  --houses     list the built-in houses";
+Fly a paper glider through a house of many rooms. Floor vents lift you,
+nearly everything else is in the way.
 
-// background pictures for where there is no room (RoomGraphics.cpp)
-const SKY: i32 = 2015;
-const MEADOW: i32 = 2012;
-const DIRT: i32 = 2011;
+usage: glider-pro [options] [HOUSE]
 
-/// DrawRoomBackground: the room's eight tiles, each a 64-pixel column of
-/// its background picture. A spot with no room shows sky above the ground
-/// floor, meadow on it, dirt below.
-fn room_background(a: &Assets, h: &House, room: Option<usize>, floor: i32) -> Canvas {
-    let mut c = Canvas::new();
-    c.fill(gfx::WHOLE, gfx::BLACK);
-    let (pict, tiles) = match room {
-        Some(r) => (h.rooms[r].background, h.rooms[r].tiles),
-        None if floor > 1 => (SKY, [2; 8]),
-        None if floor == 1 => (MEADOW, [0; 8]),
-        None => (DIRT, [0; 8]),
+  HOUSE           a built-in house by name (\"Slumberland\")
+  --houses        list the built-in houses
+  --mute          no sound
+  --frames N      run N frames of a game with no one at the keys, no
+                  terminal (a smoke test), and print where it ended
+  --version       print the version
+
+Keys: left and right arrows (or A, D) fly; Down (or S) burns battery or
+helium; Up, W or Space fires a rubber band. Tab pauses, Q ends the game.
+
+Logging: RUST_LOG=debug glider-pro 2>glider-pro.log";
+
+/// The screen the game believes in: one room (512 x 322) under the
+/// scoreboard's 20 rows, 20 more for the menu bar strip.
+const SCREEN: Rect = Rect::new(0, 0, 512, 362);
+
+fn seed_now() -> u32 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as u32 ^ d.subsec_nanos()).unwrap_or(1)
+}
+
+/// A game set up as Glider PRO's main() does before its event loop, with
+/// `house` read.
+fn new_game_state(a: Rc<Assets>, house: &str) -> Option<Game> {
+    let mut g = Game { assets: Some(a), screen: SCREEN, num_neighbors: 1, ..Default::default() };
+    g.main_window_map = Map::new(SCREEN);
+    g.main_window_map.fill_rect(SCREEN, gfx::BLACK);
+    g.the_seed = seed_now();
+    g.init_random_long_qus();
+    g.is_sound_on = true;
+    g.is_play_music_game = true;
+    g.is_play_music_idle = false;
+    g.quicker_transitions = false;
+    g.init_screen_rects();
+    g.create_pointers();
+    g.init_src_rects();
+    g.create_offscreens();
+    g.init_sound();
+    g.init_music();
+    if !load_house(&mut g, house) {
+        return None;
+    }
+    Some(g)
+}
+
+fn load_house(g: &mut Game, name: &str) -> bool {
+    let Some(h) = house::load(name) else { return false };
+    if let Some(a) = &g.assets {
+        a.new_house();
+    }
+    g.house = h;
+    g.this_house_name = name.to_string();
+    g.read_house()
+}
+
+// ---------------------------------------------------------------- terminal
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Screen {
+    Title,
+    Playing,
+}
+
+struct Term {
+    terminal: ratatui::DefaultTerminal,
+    input: Input,
+    audio: Audio,
+    a: Rc<Assets>,
+    /// Sounds by snd id, house-own first; cleared with a new house.
+    sounds: HashMap<i32, Option<Arc<mac::Sound>>>,
+    music: VecDeque<i32>,
+    music_playing: bool,
+    aspect: f32,
+    placed: view::Placed,
+    screen: Screen,
+    any: bool,
+}
+
+impl Term {
+    fn sound(&mut self, g: &Game, id: i32) -> Option<Arc<mac::Sound>> {
+        let a = self.a.clone();
+        self.sounds.entry(id).or_insert_with(|| a.sound(Some(&g.house), id as i16).map(Arc::new)).clone()
+    }
+
+    /// Start what the game queued and react to channels that ended.
+    fn service_audio(&mut self, g: &mut Game) {
+        for (n, ch) in std::mem::take(&mut g.sound_queue) {
+            let s = if n < 0 {
+                None
+            } else {
+                let id = if n == game::TRIGGER_SOUND { g.trigger_sound_id.unwrap_or(-1) } else { game::sound::BASE_BUFFER_SOUND_ID + n };
+                self.sound(g, id)
+            };
+            self.audio.play(ch as usize, s);
+        }
+        for id in std::mem::take(&mut g.music_queue) {
+            if id == game::music::MUSIC_STOP {
+                self.music.clear();
+                self.music_playing = false;
+                self.audio.play(audio::MUSIC, None);
+            } else {
+                self.music.push_back(id);
+            }
+        }
+        for ch in self.audio.finished() {
+            if ch == audio::MUSIC {
+                self.music_playing = false;
+                if self.music.is_empty()
+                    && let Some(next) = g.music_piece_finished()
+                {
+                    self.music.push_back(next);
+                }
+            } else {
+                g.sound_finished(ch as i32);
+            }
+        }
+        if !self.music_playing
+            && let Some(id) = self.music.pop_front()
+        {
+            let s = self.sound(g, id);
+            self.music_playing = s.is_some();
+            self.audio.play(audio::MUSIC, s);
+        }
+    }
+
+    fn read_events(&mut self, until: Instant) {
+        loop {
+            let now = Instant::now();
+            let left = until.saturating_duration_since(now);
+            if !event::poll(left).unwrap_or(false) {
+                break;
+            }
+            match event::read() {
+                Ok(Event::Key(k)) => self.input.on_key(k, Instant::now()),
+                Ok(Event::Mouse(m)) => match m.kind {
+                    MouseEventKind::Down(MouseButton::Left) => self.input.mouse_down(),
+                    MouseEventKind::Up(MouseButton::Left) => self.input.mouse_up(),
+                    _ => {}
+                },
+                Ok(Event::FocusLost) => self.input.release_all(),
+                Ok(Event::Resize(..)) => {
+                    let _ = self.terminal.autoresize();
+                }
+                _ => {}
+            }
+        }
+        self.input.poll_pad();
+    }
+
+    /// Commands since last asked; sets `any` if a key or button came.
+    fn take_cmds(&mut self, g: &mut Game) -> Vec<Cmd> {
+        let cmds: Vec<Cmd> = self.input.cmds.drain(..).collect();
+        for c in &cmds {
+            match c {
+                Cmd::Any => self.any = true,
+                Cmd::Exit => {
+                    g.quitting = true;
+                    g.playing = false;
+                }
+                _ => {}
+            }
+        }
+        cmds
+    }
+
+    fn draw(&mut self, g: &Game) {
+        let area = self.terminal.size().map(|s| Area::new(0, 0, s.width, s.height)).unwrap_or_default();
+        let pic_area = Area::new(area.x, area.y, area.width, area.height.saturating_sub(1));
+        self.placed = view::place(pic_area, self.aspect);
+        // the central room, out of the main window
+        let room_dest = g.local_rooms_dest[0];
+        let mut room = Map::sized(512, 322);
+        room.copy_bits(&g.main_window_map, room_dest, Rect::new(0, 0, 512, 322));
+        let placed = self.placed;
+        let screen = self.screen;
+        let status = status_line(g, screen);
+        let labels: Vec<game::Label> = g.labels.clone();
+        let _ = self.terminal.draw(|f| {
+            let buf: &mut Buffer = f.buffer_mut();
+            view::draw(buf, &room, &placed);
+            for l in &labels {
+                let x = l.x - room_dest.left;
+                let y = l.y - room_dest.top;
+                if let Some((cx, cy)) = cell_at(&placed, x, y - 6) {
+                    let st = Style::default().fg(Color::Rgb(l.color[0], l.color[1], l.color[2])).bg(Color::Black);
+                    buf.set_stringn(cx, cy, &l.text, (area.width.saturating_sub(cx)) as usize, st);
+                }
+            }
+            let y = area.height.saturating_sub(1);
+            let st = Style::default().fg(Color::Gray).add_modifier(Modifier::BOLD);
+            buf.set_stringn(0, y, &status, area.width as usize, st);
+        });
+    }
+}
+
+/// The terminal cell over room pixel (x, y).
+fn cell_at(p: &view::Placed, x: i32, y: i32) -> Option<(u16, u16)> {
+    if p.tw == 0 || p.th == 0 {
+        return None;
+    }
+    let cx = x.clamp(0, 511) * p.tw as i32 / 512;
+    let cy = y.clamp(0, 321) * (p.th as i32 / 2) / 322;
+    Some((p.cells.x + cx as u16, p.cells.y + cy as u16))
+}
+
+fn status_line(g: &Game, screen: Screen) -> String {
+    match screen {
+        Screen::Title => format!(" {}   Enter: play   Q: quit", g.this_house_name),
+        Screen::Playing => {
+            let paused = if g.paused { "   PAUSED (Tab)" } else { "" };
+            format!(" {}   gliders {}   score {}{paused}", g.board_title, g.board_gliders, g.board_score)
+        }
+    }
+}
+
+impl ScreenIo for Term {
+    fn present(&mut self, g: &mut Game) {
+        self.service_audio(g);
+        self.draw(g);
+    }
+
+    fn wait(&mut self, ticks: i32, g: &mut Game) -> bool {
+        let until = Instant::now() + TICK * ticks.max(0) as u32;
+        self.any = false;
+        loop {
+            self.read_events(until.min(Instant::now() + TICK));
+            let _ = self.take_cmds(g);
+            self.input.keys(Instant::now(), &mut g.keys);
+            self.service_audio(g);
+            if Instant::now() >= until {
+                break;
+            }
+        }
+        self.any
+    }
+    fn into_any(self: Box<Self>) -> Box<dyn std::any::Any> {
+        self
+    }
+}
+
+/// The title: Glider PRO's splash, scaled to the room.
+fn draw_title(g: &mut Game) {
+    let dest = g.local_rooms_dest[0];
+    g.main_window_map.fill_rect(SCREEN, gfx::BLACK);
+    if let Some(img) = g.picture(game::SPLASH8_BIT_PICT) {
+        g.main_window_map.draw_picture(&img, dest);
+    }
+    g.labels.clear();
+}
+
+fn run(slot: &mut Option<Box<Term>>, g: &mut Game) {
+    loop {
+        // ---- the title
+        {
+            let term = slot.as_mut().expect("terminal");
+            term.screen = Screen::Title;
+            draw_title(g);
+            term.draw(g);
+            term.input.clear();
+            loop {
+                term.read_events(Instant::now() + TICK * 2);
+                let cmds = term.take_cmds(g);
+                term.service_audio(g);
+                if g.quitting || cmds.iter().any(|c| matches!(c, Cmd::Quit | Cmd::Back)) {
+                    return;
+                }
+                if cmds.iter().any(|c| matches!(c, Cmd::Confirm)) {
+                    break;
+                }
+                if cmds.iter().any(|c| matches!(c, Cmd::Any)) {
+                    term.draw(g);
+                }
+            }
+            term.screen = Screen::Playing;
+            term.input.clear();
+        }
+
+        // ---- a game
+        lend(slot, g, |g| g.new_game(game::NEW_GAME_MODE));
+        let mut next = Instant::now();
+        while g.playing && !g.quitting {
+            {
+                let term = slot.as_mut().expect("terminal");
+                term.read_events(next);
+                let cmds = term.take_cmds(g);
+                for c in &cmds {
+                    match c {
+                        Cmd::Pause => {
+                            if g.paused {
+                                g.end_pause();
+                            } else {
+                                g.do_pause();
+                            }
+                        }
+                        Cmd::Quit => {
+                            if g.paused {
+                                g.end_pause();
+                            }
+                            g.keys.quit = true;
+                        }
+                        _ => {}
+                    }
+                }
+                term.input.keys(Instant::now(), &mut g.keys);
+            }
+            if !g.paused {
+                g.ticks += game::TICKS_PER_FRAME;
+                lend(slot, g, |g| g.play_game_frame());
+                g.keys.quit = false;
+            }
+            let term = slot.as_mut().expect("terminal");
+            term.service_audio(g);
+            term.draw(g);
+            next += TICK * game::TICKS_PER_FRAME as u32;
+            let now = Instant::now();
+            if next < now {
+                next = now;
+            }
+        }
+        if g.quitting {
+            return;
+        }
+        lend(slot, g, |g| g.play_game_finish());
+    }
+}
+
+/// Run `f` on the game with the terminal lent to it, for the C code that
+/// waits (banners, transitions, game over): the game shows and reads
+/// through it, then hands it back.
+fn lend<R>(term: &mut Option<Box<Term>>, g: &mut Game, f: impl FnOnce(&mut Game) -> R) -> R {
+    let t = term.take().expect("terminal");
+    g.screen_io = Some(t);
+    let r = f(g);
+    let io = g.screen_io.take().expect("terminal lent");
+    *term = Some(io.into_any().downcast::<Term>().expect("the terminal"));
+    r
+}
+
+/// No terminal: waits just pass the time.
+struct NoIo;
+
+impl ScreenIo for NoIo {
+    fn present(&mut self, g: &mut Game) {
+        g.sound_queue.clear();
+        g.music_queue.clear();
+    }
+    fn wait(&mut self, _ticks: i32, g: &mut Game) -> bool {
+        g.sound_queue.clear();
+        g.music_queue.clear();
+        false
+    }
+    fn into_any(self: Box<Self>) -> Box<dyn std::any::Any> {
+        self
+    }
+}
+
+/// `--frames N`: a game with nobody at the keys, without a terminal.
+fn smoke(a: Rc<Assets>, house: &str, frames: u32) {
+    let Some(mut g) = new_game_state(a, house) else {
+        eprintln!("cannot read house {house:?}");
+        std::process::exit(1);
     };
-    // LoadGraphicSpecial falls back on picture 2000
-    let Some(bg) = a.pict(Some(h), pict as i16).or_else(|| a.pict(Some(h), 2000)) else { return c };
-    for (i, &t) in tiles.iter().enumerate() {
-        let src = Rect::new(t * TILE_WIDE, 0, t * TILE_WIDE + TILE_WIDE, TILE_HIGH);
-        let dst = src.at(i as i32 * TILE_WIDE, 0);
-        c.copy_bits(&bg, src, dst);
-    }
-    c
-}
-
-struct App {
-    a: Assets,
-    house_ix: usize,
-    house: House,
-    room: usize,
-    braille: bool,
-    quit: bool,
-}
-
-impl App {
-    fn load_house(&mut self, ix: usize) {
-        let name = house::BUILT_IN[ix].0;
-        if let Some(h) = house::load(name) {
-            self.a.new_house();
-            self.house_ix = ix;
-            self.room = h.rooms.iter().position(|r| r.suite != ROOM_IS_EMPTY).unwrap_or(0);
-            if (0..h.rooms.len() as i32).contains(&h.first_room) {
-                self.room = h.first_room as usize;
-            }
-            self.house = h;
-            log::info!("house {name:?}, {} rooms, first {}", self.house.rooms.len(), self.house.first_room);
+    g.screen_io = Some(Box::new(NoIo));
+    g.new_game(game::NEW_GAME_MODE);
+    let mut n = 0;
+    // GLIDER_PRO_HOLD: keys held throughout, e.g. "right,band"
+    let hold = std::env::var("GLIDER_PRO_HOLD").unwrap_or_default();
+    while n < frames && g.playing {
+        g.keys.left = hold.contains("left");
+        g.keys.right = hold.contains("right");
+        g.keys.batt = hold.contains("batt");
+        g.keys.band = hold.contains("band");
+        g.ticks += game::TICKS_PER_FRAME;
+        g.play_game_frame();
+        g.sound_queue.clear();
+        g.music_queue.clear();
+        n += 1;
+        if std::env::var_os("GLIDER_PRO_TRACE").is_some() && n % 10 == 0 {
+            let gl = &g.gliders[0];
+            eprintln!("frame {n}: room {} mode {} dest {:?} vel ({}, {})", g.this_room_number, gl.mode, gl.dest, gl.h_vel, gl.v_vel);
         }
     }
-
-    /// The room beside this one, if there is one.
-    fn step(&mut self, df: i32, ds: i32) {
-        let r = &self.house.rooms[self.room];
-        if let Some(n) = self.house.room_at(r.floor + df, r.suite + ds) {
-            self.room = n;
+    let gl = &g.gliders[0];
+    println!(
+        "{n} frames: playing={} room={} ({}) glider mode={} at {:?} score={} mortals={}",
+        g.playing,
+        g.this_room_number,
+        mac::mac_roman(&g.this_room.name),
+        gl.mode,
+        (gl.dest.left, gl.dest.top),
+        g.the_score,
+        g.mortals
+    );
+    if let Ok(path) = std::env::var("GLIDER_PRO_SHOT") {
+        let m = &g.main_window_map;
+        let mut out = format!("P6 {} {} 255\n", m.width(), m.height()).into_bytes();
+        for p in &m.px {
+            out.extend_from_slice(p);
         }
+        let _ = std::fs::write(path, out);
     }
-
-    fn key(&mut self, k: KeyCode) {
-        let n = self.house.rooms.len();
-        match k {
-            KeyCode::Left => self.step(0, -1),
-            KeyCode::Right => self.step(0, 1),
-            KeyCode::Up => self.step(1, 0),
-            KeyCode::Down => self.step(-1, 0),
-            KeyCode::PageDown => {
-                for d in 1..n {
-                    let r = (self.room + d) % n;
-                    if self.house.rooms[r].suite != ROOM_IS_EMPTY {
-                        self.room = r;
-                        break;
-                    }
-                }
-            }
-            KeyCode::PageUp => {
-                for d in 1..n {
-                    let r = (self.room + n - d) % n;
-                    if self.house.rooms[r].suite != ROOM_IS_EMPTY {
-                        self.room = r;
-                        break;
-                    }
-                }
-            }
-            KeyCode::Char('h' | 'H') => self.load_house((self.house_ix + 1) % house::BUILT_IN.len()),
-            KeyCode::Char('v' | 'V') => self.braille = !self.braille,
-            KeyCode::Char('q' | 'Q') | KeyCode::Esc => self.quit = true,
-            _ => {}
-        }
-    }
-
-    fn draw(&self, buf: &mut Buffer, area: Area) {
-        buf.set_style(area, Style::default().bg(Color::Rgb(0, 0, 0)));
-        let pic = Area::new(area.x, area.y, area.width, area.height.saturating_sub(1));
-        let placed = view::place(pic, view::cell_aspect());
-        let r = &self.house.rooms[self.room];
-        let c = room_background(&self.a, &self.house, Some(self.room), r.floor);
-        if self.braille {
-            view::draw_braille(buf, &c, &placed);
-        } else {
-            view::draw(buf, &c, &placed);
-        }
-        let line = format!(
-            "{}  room {} {:?}  floor {} suite {}  ({} objects)   arrows move  PgUp/PgDn  H house  V view  Q quit",
-            house::BUILT_IN[self.house_ix].0,
-            self.room,
-            mac::mac_roman(&r.name),
-            r.floor,
-            r.suite,
-            r.num_objects
-        );
-        let y = placed.cells.bottom().min(area.bottom().saturating_sub(1));
-        let x = area.x + area.width.saturating_sub(line.chars().count() as u16) / 2;
-        buf.set_string(x, y, line, Style::default().fg(Color::Rgb(255, 210, 90)));
+    if !g.playing {
+        g.play_game_finish();
     }
 }
 
-fn main() -> io::Result<()> {
+fn main() {
     env_logger::init();
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let has = |f: &str| args.iter().any(|a| a == f);
-    let value = |f: &str| args.iter().position(|a| a == f).and_then(|i| args.get(i + 1)).cloned();
-    if has("--help") || has("-h") {
-        println!("{HELP}");
-        return Ok(());
-    }
-    if has("--houses") {
-        for (n, _) in house::BUILT_IN {
-            println!("{n}");
-        }
-        return Ok(());
-    }
-    let ix = value("--house").and_then(|n| house::BUILT_IN.iter().position(|(h, _)| *h == n)).unwrap_or(0);
-    let mut app = App { a: Assets::load(), house_ix: 0, house: house::load(house::BUILT_IN[0].0).expect("Demo House"), room: 0, braille: !has("--blocks"), quit: false };
-    app.load_house(ix);
-    if let Some(r) = value("--room").and_then(|v| v.parse::<usize>().ok()) {
-        app.room = r.min(app.house.rooms.len().saturating_sub(1));
-    }
-    if has("--shot") {
-        let (w, h) = value("--size").and_then(|v| v.split_once('x').and_then(|(w, h)| Some((w.parse().ok()?, h.parse().ok()?)))).unwrap_or((128u16, 44u16));
-        let area = Area::new(0, 0, w, h);
-        let mut buf = Buffer::empty(area);
-        app.draw(&mut buf, area);
-        let mut out = String::new();
-        for y in 0..h {
-            for x in 0..w {
-                let c = &buf[(x, y)];
-                for (code, col) in [(38, c.fg), (48, c.bg)] {
-                    if let Color::Rgb(r, g, b) = col {
-                        out.push_str(&format!("\x1b[{code};2;{r};{g};{b}m"));
-                    }
-                }
-                out.push_str(c.symbol());
+    let mut house = None;
+    let mut mute = false;
+    let mut frames = None;
+    let mut it = args.iter();
+    while let Some(a) = it.next() {
+        match a.as_str() {
+            "-h" | "--help" => {
+                println!("{HELP}");
+                return;
             }
-            out.push_str("\x1b[0m\n");
+            "--version" => {
+                println!("glider-pro {}", env!("CARGO_PKG_VERSION"));
+                return;
+            }
+            "--houses" => {
+                for (n, _) in house::BUILT_IN {
+                    println!("{n}");
+                }
+                return;
+            }
+            "--mute" => mute = true,
+            "--frames" => frames = it.next().and_then(|n| n.parse().ok()),
+            s if !s.starts_with('-') => house = Some(s.to_string()),
+            s => {
+                eprintln!("unknown option {s}\n\n{HELP}");
+                std::process::exit(2);
+            }
         }
-        print!("{out}");
-        return Ok(());
     }
-    let mut terminal = ratatui::init();
-    while !app.quit {
-        terminal.draw(|f| {
-            let area = f.area();
-            app.draw(f.buffer_mut(), area);
-        })?;
-        if let Event::Key(k) = event::read()?
-            && k.kind == KeyEventKind::Press
-        {
-            app.key(k.code);
-        }
+    let mut settings = Settings::load();
+    let house = house.unwrap_or_else(|| settings.house.clone());
+    let a = Rc::new(Assets::load());
+    if let Some(n) = frames {
+        smoke(a, &house, n);
+        return;
     }
+    let Some(mut g) = new_game_state(a.clone(), &house) else {
+        eprintln!("cannot read house {house:?} (see --houses)");
+        std::process::exit(1);
+    };
+    g.is_sound_on = settings.sound;
+    settings.house = house;
+    settings.save();
+
+    let exact = supports_keyboard_enhancement().unwrap_or(false);
+    let terminal = ratatui::init();
+    let mut out = io::stdout();
+    if exact {
+        let _ = execute!(out, PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::REPORT_EVENT_TYPES));
+    }
+    let _ = execute!(out, EnableMouseCapture, EnableFocusChange);
+    let mut input = Input::new(exact);
+    input.open_pad();
+    let term = Term {
+        terminal,
+        input,
+        audio: Audio::new(mute),
+        a,
+        sounds: HashMap::new(),
+        music: VecDeque::new(),
+        music_playing: false,
+        aspect: view::cell_aspect(),
+        placed: view::Placed::default(),
+        screen: Screen::Title,
+        any: false,
+    };
+    let mut slot = Some(Box::new(term));
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(&mut slot, &mut g)));
+    let mut out = io::stdout();
+    if exact {
+        let _ = execute!(out, PopKeyboardEnhancementFlags);
+    }
+    let _ = execute!(out, DisableMouseCapture, DisableFocusChange);
     ratatui::restore();
-    Ok(())
+    if let Err(e) = result {
+        std::panic::resume_unwind(e);
+    }
 }

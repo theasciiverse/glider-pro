@@ -5,7 +5,11 @@
 //! backgrounds' dithering and the gray shadows as the shades they were
 //! meant to be.
 
-use crate::gfx::{Canvas, H, W};
+use crate::gfx::Map;
+
+/// The room's size, what the terminal shows.
+const W: i32 = 512;
+const H: i32 = 322;
 use crate::mac::Rgb;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
@@ -75,7 +79,7 @@ fn rgb(c: Rgb) -> Color {
 }
 
 /// Draw the picture into `p`.
-pub fn draw(buf: &mut Buffer, c: &Canvas, p: &Placed) {
+pub fn draw(buf: &mut Buffer, c: &Map, p: &Placed) {
     let xs = spans(p.tw, W);
     let ys = spans(p.th, H);
     let avg = |tx: usize, ty: usize| -> Rgb {
@@ -84,7 +88,7 @@ pub fn draw(buf: &mut Buffer, c: &Canvas, p: &Placed) {
         let mut sum = [0u32; 3];
         for y in y0..y1 {
             for x in x0..x1 {
-                let px = c.px[(y * W + x) as usize];
+                let px = c.get(x, y);
                 for k in 0..3 {
                     sum[k] += px[k] as u32;
                 }
@@ -173,17 +177,17 @@ fn braille_cell(p: &[[Rgb; 4]; 2]) -> (char, Rgb, Rgb) {
 
 /// The picture in Braille cells. Each dot is the brightest Mac pixel under
 /// it, so thin bright things (a glider's wing, a spark) never vanish.
-pub fn draw_braille(buf: &mut Buffer, c: &Canvas, p: &Placed) {
+pub fn draw_braille(buf: &mut Buffer, c: &Map, p: &Placed) {
     let (tw, th) = dots(p);
     let xs = spans(tw, W);
     let ys = spans(th, H);
     let at = |tx: usize, ty: usize| -> Rgb {
         let (x0, x1) = xs[tx];
         let (y0, y1) = ys[ty];
-        let mut best = c.px[(y0 * W + x0) as usize];
+        let mut best = c.get(x0, y0);
         for y in y0..y1 {
             for x in x0..x1 {
-                let px = c.px[(y * W + x) as usize];
+                let px = c.get(x, y);
                 if lum(px) > lum(best) {
                     best = px;
                 }

@@ -56,56 +56,40 @@ record it.
   PRO drew the 3x3 rooms around it on a big screen; at terminal sizes the room itself
   needs every cell.
 
+## Plan (decided 2026-11-06, replaces the Aerofoil plan of 2026-10-27)
+
+David, 2026-11-06: the Aerofoil build (branch `asciiverse`, Aerofoil's whole C++ with a
+notcurses driver) was "a bit too complete for an Asciiverse game": a graphical emulator
+of the game in the terminal. Wanted instead: **a good follow-up to Glider**, built the
+way `games/glider` is, and trimming parts of the game is fine.
+
+So: **Rust on Glider's engine**, Calhoun's C translated (not Aerofoil's), reading his
+files directly. Branch `main`; `asciiverse` stays on GitHub, unused.
+
+- Kept: the whole play of the game (Play, Player, Interactions, Dynamics, Objects,
+  Room, Render, Transit, Triggers, Grease, RubberBands, Banner, Scoreboard, GameOver,
+  HighScores, Sound, Music), every built-in house, houses' own art and sounds, any house
+  file from disk.
+- Cut (David, 2026-11-06): the house editor (ObjectEdit, ObjectInfo, RoomInfo, Tools,
+  Link, Coordinates, Scrap, ObjectAdd), the map window, the house checks (HouseLegal),
+  house intro movies, saved games, the Mac settings dialogs (settings become a terminal
+  screen as in Glider).
+- Like Glider: terminal cells only (no pixel graphics), the original art in half blocks
+  and a silhouette view (V switches), text shown during play as terminal text, keys
+  (hold or tap), mouse, gamepad, sound.
+- One room on screen: `numNeighbors` = 1, a setting Glider PRO itself offers
+  (Settings: 1, 3 or 9 rooms), so play is as on a Mac set to show one room.
+
 ## Modules
 
-`mac.rs`, `gfx.rs`, `view.rs` are copied from `games/glider` (not a shared crate yet,
-per "validate before generalizing") with Glider PRO's additions (BinHex, opcodes 0x1F
-and 0x9A, 322-pixel rooms, masks as separate pictures). `house.rs`, `assets.rs`,
-`main.rs` (for now a house explorer: arrows move between rooms, H next house, V view).
-
-## Plan (decided 2026-10-27, paused until David comes back to it)
-
-**Build on Aerofoil's C++ and give it a terminal, instead of translating to Rust.**
-Why, from the measurements of 2026-10-27:
-
-- Aerofoil's gameplay is Calhoun's code line for line: Player 10 of 1,412 lines
-  changed, Interactions 12 of 1,611, Dynamics 22 of 693, RubberBands 2 of 273 (whitespace
-  normalised). The bigger diffs (ObjectDraw 363 of 1,186, Play, Render) are where
-  Aerofoil swapped the Mac's drawing calls for its own.
-- Calhoun's C on its own needs the classic Mac Toolbox (QuickDraw, Resource, Sound,
-  Memory and File Managers, dialogs, QuickTime): that is Aerofoil's 31k-line
-  PortabilityLayer. Calhoun's C + notcurses would mean rewriting it. Translating to
-  Rust would be about 25k lines plus debugging every difference.
-- Aerofoil keeps the platform behind small driver interfaces (`GpCommon/`):
-  `IGpDisplayDriver` (about 20 methods: surfaces the game draws into, DrawSurface,
-  palette, cursor), `IGpInputDriver` (ProcessInput posting `GpVOSEvent`s),
-  `IGpAudioDriver` (the SDL2 one works without a window), fonts, file system.
-  Linux builds through CMake (`AerofoilX` target, SDL2). SDL2 2.32, CMake, g++ and
-  (from David, 2026-10-27) `libnotcurses-dev` are installed here.
-
-Steps:
-
-1. Build Aerofoil as it is (`cmake`, `make AerofoilX`; building external code needs
-   David's approval in auto mode). Work out the data conversion on Linux: Aerofoil
-   plays converted data (`.gpa` etc.) made by `ConvertResources.bat` (Windows) from
-   CMake tools (MiniRez, hqx2gp, gpr2gpa, HouseTool, MergeGPF); MacPorts packages
-   Aerofoil, so a non-Windows route exists. Not yet checked.
-2. Rebase `games/glider-pro` onto Aerofoil's history (`aerofoil` remote), keeping
-   Calhoun's as `calhoun` for reference. The Rust start (`src/`, data layer and
-   explorer) is dropped; its PICT and BinHex readers live on in `games/glider`.
-3. A notcurses display driver: compose the game's surfaces into a frame, show it with
-   a pixel blitter (kitty graphics, Sixel) where the terminal has one, else sextants,
-   octants, Braille or half blocks. Only the central room needs every cell (Glider PRO
-   draws the 3x3 rooms around it on a big screen; for the terminal, show the room).
-4. A notcurses input driver: keys with releases (kitty protocol), mouse; and the
-   key-repeat fallback from `games/glider`.
-5. Menus, dialogs and the high-score entry as terminal text (Aerofoil draws them as
-   640x480 pixels, unreadable at terminal size).
-6. Later: the silhouette view (needs small hooks in GpApp to know what is where),
-   terminal text for in-game numbers, as in `games/glider`.
-
-Licence for this: Aerofoil GPL-2.0-or-later, notcurses Apache-2.0 (fine with GPLv3,
-see Sources).
+- `mac.rs` (BinHex, resource forks, DeRez, PICT, snd), `house.rs`, `assets.rs`: data.
+- `gfx.rs`: offscreen maps (GWorlds) of any size and the QuickDraw subset Glider PRO
+  draws with (pen size, pattern and mode, regions, CopyBits, CopyMask, the 8-bit
+  palette). No text: text is terminal text.
+- `game/`: the translation. One `Game` struct holds Glider PRO's globals (C names in
+  snake_case); each C file becomes a module of `impl Game` with the C function names
+  in snake_case.
+- `view.rs`: maps to terminal cells.
 
 ## Commands
 
