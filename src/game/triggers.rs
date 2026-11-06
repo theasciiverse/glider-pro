@@ -22,9 +22,12 @@ impl Game {
             self.triggers[w].object = mo.object_link;
             self.triggers[w].index = who_linked;
             self.triggers[w].timer = mo.the_object.e().delay * 3;
-            self.triggers[w].what = self.master_objects[self.triggers[w].object as usize]
-                .the_object
-                .what;
+            // (the C reads masterObjects[-1] for a trigger linked to no
+            // object; here it triggers nothing)
+            self.triggers[w].what = match self.master_objects.get(self.triggers[w].object as usize) {
+                Some(o) if self.triggers[w].object >= 0 => o.the_object.what,
+                _ => 0,
+            };
             self.triggers[w].armed = true;
         }
 

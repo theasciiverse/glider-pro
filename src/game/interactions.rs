@@ -879,6 +879,7 @@ impl Game {
 
     pub fn handle_hot_spot_collision(&mut self, g: usize, who: usize, index: i32) {
         let hot = self.hot_spots[who];
+        log::debug!("frame {} glider {g} hits hot spot {who}: action {} who {} bounds {:?}", self.game_frame, hot.action, hot.who, hot.bounds);
         let two = self.two_player_game && !self.one_player_left;
         match hot.action {
             LIFT_IT => {

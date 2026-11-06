@@ -155,9 +155,12 @@ stay as shipped, as the C's locked houses, whose scores went to a file).
 
 ## Known gaps (2026-11-07)
 
-- The demo drifts: in Demo House the glider dies in room 4 at frame 1766 (touches the
-  TV top) three frames before the recording steers away; under audit. The recording
-  is 1117 presses (kDemoLength is bytes), up to frame 3414.
+- The demo replays as Calhoun recorded it, deaths included (audit of 2026-11-07: the
+  glider touches the TV in room 4 at frame 1766 in the recording itself; held keys
+  end exactly on the frames rooms change, before and after; the third glider is lost
+  just after the last press, frame 3414). 1117 presses (kDemoLength is bytes). A
+  good regression check: first glider lost at 1766 in room 4, game over at 3417 in
+  room 15 (Water).
 - Two-player games: 2 on the title; the second player has A, D, S, W (Glider PRO gave it the modifier keys, which a terminal cannot report alone). Without the kitty protocol only one key at a time counts as held, so two players need it.
 - Not seen yet in play: every object kind's drawing and behaviour in every house.
 

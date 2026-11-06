@@ -226,7 +226,10 @@ impl Game {
                         a.state = self.new_state;
                     }
                     FORCE_OFF => {
-                        changed = a.state;
+                        // C: `state == true`: a state byte other than 0 or 1 (an
+                        // invisible blower in Art Museum and CD Demo House has 23)
+                        // is not "changed".
+                        changed = self.house.rooms[r].objects[o].byte(7) == 1;
                         self.new_state = false;
                         a.state = self.new_state;
                     }
@@ -268,7 +271,7 @@ impl Game {
             RED_CLOCK | BLUE_CLOCK | YELLOW_CLOCK | CUCKOO | PAPER | BATTERY | BANDS | GREASE_RT | GREASE_LF | FOIL
             | INVIS_BONUS | STAR | SPARKLE | HELIUM => {
                 let mut c = self.house.rooms[r].objects[o].c();
-                changed = c.state;
+                changed = self.house.rooms[r].objects[o].byte(8) == 1; // C: `state == true`
                 self.new_state = false;
                 c.state = self.new_state;
                 self.house.rooms[r].objects[o].set_c(c);
@@ -360,7 +363,7 @@ impl Game {
                         f.state = self.new_state;
                     }
                     FORCE_OFF => {
-                        changed = f.state;
+                        changed = self.house.rooms[r].objects[o].byte(9) == 1; // C: `state == true`
                         self.new_state = false;
                         f.state = self.new_state;
                     }
@@ -406,7 +409,7 @@ impl Game {
                         g.state = self.new_state;
                     }
                     FORCE_OFF => {
-                        changed = g.state;
+                        changed = self.house.rooms[r].objects[o].byte(9) == 1; // C: `state == true`
                         self.new_state = false;
                         g.state = self.new_state;
                     }
@@ -452,7 +455,7 @@ impl Game {
                         h.state = self.new_state;
                     }
                     FORCE_OFF => {
-                        changed = h.state;
+                        changed = self.house.rooms[r].objects[o].byte(9) == 1; // C: `state == true`
                         self.new_state = false;
                         h.state = self.new_state;
                     }
