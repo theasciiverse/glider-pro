@@ -36,69 +36,55 @@ fn file(name: &str) -> Option<PathBuf> {
     Some(d.join(name))
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct Score {
-    pub house: String,
-    pub score: i64,
-    /// `levels`: rooms visited.
-    pub rooms: i32,
-    pub name: String,
-    /// `timeStamps`: seconds since 1970 here.
-    pub time: u64,
+/// One house's high score table, as Glider PRO keeps it (`scoresType`):
+/// a banner from the best player, then up to ten (name, score, time,
+/// rooms visited).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Table {
+    pub banner: String,
+    pub rows: Vec<(String, i32, u32, i32)>,
 }
 
-#[derive(Default)]
-pub struct Scores {
-    pub all: Vec<Score>,
+fn table_file(house: &str) -> Option<PathBuf> {
+    let d = dir()?.join("scores");
+    std::fs::create_dir_all(&d).ok()?;
+    let safe: String = house.chars().map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' { c } else { '_' }).collect();
+    Some(d.join(format!("{safe}.txt")))
+}
+
+/// `scores/<house>.txt`: the banner on the first line, then one
+/// tab-separated row per score.
+pub fn read_table(house: &str) -> Option<Table> {
+    let text = std::fs::read_to_string(table_file(house)?).ok()?;
+    let mut lines = text.lines();
+    let banner = lines.next()?.to_string();
+    let rows = lines
+        .filter_map(|l| {
+            let f: Vec<&str> = l.split('\t').collect();
+            Some((f.first()?.to_string(), f.get(1)?.parse().ok()?, f.get(2)?.parse().ok()?, f.get(3)?.parse().ok()?))
+        })
+        .take(NUM_SCORES)
+        .collect();
+    Some(Table { banner, rows })
+}
+
+pub fn write_table(house: &str, t: &Table) {
+    let Some(p) = table_file(house) else { return };
+    let mut text = format!("{}\n", clean_long(&t.banner, 31));
+    for (n, s, time, lv) in &t.rows {
+        text += &format!("{}\t{s}\t{time}\t{lv}\n", clean(n));
+    }
+    if let Err(e) = std::fs::write(&p, text) {
+        log::warn!("cannot save scores to {}: {e}", p.display());
+    }
 }
 
 fn clean(s: &str) -> String {
-    s.chars().filter(|c| !c.is_control()).take(NAME_MAX).collect()
+    clean_long(s, NAME_MAX)
 }
 
-impl Scores {
-    pub fn load() -> Scores {
-        let Some(text) = file("scores.txt").and_then(|p| std::fs::read_to_string(p).ok()) else { return Scores::default() };
-        let all = text
-            .lines()
-            .filter_map(|l| {
-                let f: Vec<&str> = l.split('\t').collect();
-                Some(Score { house: f.first()?.to_string(), score: f.get(1)?.parse().ok()?, rooms: f.get(2)?.parse().ok()?, name: f.get(3)?.to_string(), time: f.get(4).and_then(|t| t.parse().ok()).unwrap_or(0) })
-            })
-            .collect();
-        Scores { all }
-    }
-
-    pub fn save(&self) {
-        let Some(p) = file("scores.txt") else { return };
-        let text: String = self.all.iter().map(|s| format!("{}\t{}\t{}\t{}\t{}\n", s.house, s.score, s.rooms, clean(&s.name), s.time)).collect();
-        if let Err(e) = std::fs::write(&p, text) {
-            log::warn!("cannot save scores to {}: {e}", p.display());
-        }
-    }
-
-    /// A house's table, best first.
-    pub fn table(&self, house: &str) -> Vec<Score> {
-        let mut t: Vec<Score> = self.all.iter().filter(|s| s.house == house).cloned().collect();
-        t.sort_by(|a, b| b.score.cmp(&a.score));
-        t.truncate(NUM_SCORES);
-        t
-    }
-
-    /// Would this score make the house's table?
-    pub fn qualifies(&self, house: &str, score: i64) -> bool {
-        let t = self.table(house);
-        score > 0 && (t.len() < NUM_SCORES || t.last().is_some_and(|s| score > s.score))
-    }
-
-    pub fn add(&mut self, s: Score) {
-        let house = s.house.clone();
-        self.all.push(s);
-        let keep = self.table(&house);
-        self.all.retain(|x| x.house != house);
-        self.all.extend(keep);
-        self.save();
-    }
+fn clean_long(s: &str, n: usize) -> String {
+    s.chars().filter(|c| !c.is_control()).take(n).collect()
 }
 
 /// Settings as `key value` lines.

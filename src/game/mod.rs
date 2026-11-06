@@ -350,6 +350,11 @@ pub trait ScreenIo {
     /// Let `ticks` 60ths of a second pass, refreshing `g.keys` and
     /// servicing sound; true if a key or button was pressed meanwhile.
     fn wait(&mut self, ticks: i32, g: &mut Game) -> bool;
+    /// Ask for a line of text (the high score dialogs), at most `max`
+    /// characters; None if the player declined.
+    fn ask(&mut self, _g: &mut Game, _prompt: &str, default: &str, _max: usize) -> Option<String> {
+        Some(default.to_string())
+    }
     /// For taking the terminal back out of the game.
     fn into_any(self: Box<Self>) -> Box<dyn std::any::Any>;
 }
@@ -816,6 +821,14 @@ impl Game {
         }
         self.ticks += waited;
         hit
+    }
+
+    /// Ask the player for a line of text through the terminal.
+    pub fn ask(&mut self, prompt: &str, default: &str, max: usize) -> Option<String> {
+        let mut io = self.screen_io.take()?;
+        let r = io.ask(self, prompt, default, max);
+        self.screen_io = Some(io);
+        r
     }
 
     /// Show the main window now (the C draws to the screen directly in

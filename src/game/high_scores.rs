@@ -277,6 +277,9 @@ impl Game {
             self.high_scores.levels[last] = self.count_rooms_visited();
             self.sort_high_scores();
             self.game_dirty = true;
+            // (the C writes the house when it is closed; the houses here
+            // stay as shipped and the table goes beside them)
+            self.write_scores_to_disk();
         }
 
         if placing != -1 {
@@ -293,8 +296,11 @@ impl Game {
     // without one the name stays as last entered, "Your Name" at first.)
 
     pub fn get_high_score_name(&mut self, place: i32) {
-        let _ = place; // (the dialog's "you placed #n" text)
-        self.play_priority_sound(ENERGIZE_SOUND, ENERGIZE_PRIORITY);
+                self.play_priority_sound(ENERGIZE_SOUND, ENERGIZE_PRIORITY);
+        if self.pending_name.is_none() {
+            let default = if self.high_name.is_empty() { DEFAULT_HIGH_NAME.to_string() } else { self.high_name.clone() };
+            self.pending_name = self.ask(&format!("A high score, number {place}! Your name:"), &default, 15);
+        }
         if let Some(name) = self.pending_name.take() {
             self.high_name = truncated(&name, 15);
         }
@@ -310,6 +316,10 @@ impl Game {
 
     pub fn get_high_score_banner(&mut self) {
         self.play_priority_sound(ENERGIZE_SOUND, ENERGIZE_PRIORITY);
+        if self.pending_banner.is_none() {
+            let default = if self.high_banner.is_empty() { DEFAULT_HIGH_BANNER.to_string() } else { self.high_banner.clone() };
+            self.pending_banner = self.ask("The best score of all! A message for the top of the list:", &default, 31);
+        }
         if let Some(banner) = self.pending_banner.take() {
             self.high_banner = truncated(&banner, 31);
         }
@@ -320,23 +330,32 @@ impl Game {
 
     //--------------------------------------------------------------  WriteScoresToDisk
 
-    /// Not yet: the C writes the table to "G-PRO Scores" in the Preferences
-    /// folder, a file named after the house.
+    /// The C writes the table to "G-PRO Scores" in the Preferences folder,
+    /// a file named after the house; here `save::write_table`.
     pub fn write_scores_to_disk(&mut self) {
-        log::info!(
-            "high scores for {}: not written to disk (not done yet)",
-            self.this_house_name
-        );
+        let hs = &self.high_scores;
+        let mut t = crate::save::Table { banner: hs.banner.clone(), rows: Vec::new() };
+        for i in 0..MAX_SCORES as usize {
+            if hs.scores[i] > 0 {
+                t.rows.push((hs.names[i].clone(), hs.scores[i], hs.time_stamps[i], hs.levels[i]));
+            }
+        }
+        crate::save::write_table(&self.this_house_name, &t);
     }
 
     //--------------------------------------------------------------  ReadScoresFromDisk
 
-    /// Not yet (see `write_scores_to_disk`).
+    /// The scores kept for this house, if any, over the house's own.
     pub fn read_scores_from_disk(&mut self) -> bool {
-        log::info!(
-            "high scores for {}: not read from disk (not done yet)",
-            self.this_house_name
-        );
-        false
+        let Some(t) = crate::save::read_table(&self.this_house_name) else { return false };
+        let hs = &mut self.high_scores;
+        *hs = Scores { banner: t.banner, ..Default::default() };
+        for (i, (n, s, time, lv)) in t.rows.into_iter().enumerate() {
+            hs.names[i] = n;
+            hs.scores[i] = s;
+            hs.time_stamps[i] = time;
+            hs.levels[i] = lv;
+        }
+        true
     }
 }

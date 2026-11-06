@@ -257,6 +257,9 @@ impl Game {
             time_stamps: hs.time_stamps,
             levels: hs.levels,
         };
+        // the houses here are as shipped (locked, in the C's terms): the
+        // scores kept for this house come from their own file
+        self.read_scores_from_disk();
 
         self.no_room_at_all = self.real_room_number_count() == 0;
         self.this_room_number = -1;
