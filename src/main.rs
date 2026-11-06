@@ -120,6 +120,9 @@ struct Term {
     /// The sound and music switches (Glider PRO's Sound settings).
     sound_on: bool,
     music_on: bool,
+    /// The room's bare background and its softened copy, for the
+    /// silhouette view, by `Game::backdrop_serial`.
+    backdrop: Option<(u32, view::Canvas, view::Canvas)>,
 }
 
 impl Term {
@@ -229,8 +232,19 @@ impl Term {
         self.placed = view::place(pic_area, self.aspect);
         // the central room, out of the main window
         let room_dest = g.local_rooms_dest[0];
-        let mut room = Map::sized(512, 322);
-        room.copy_bits(&g.main_window_map, room_dest, Rect::new(0, 0, 512, 322));
+        let mut room = view::Canvas::from_map(&g.main_window_map, room_dest);
+        let silhouette = g.silhouette && self.screen == Screen::Playing;
+        if silhouette && let Some(bare) = &g.room_backdrop {
+            if self.backdrop.as_ref().is_none_or(|b| b.0 != g.backdrop_serial) {
+                let plain = view::Canvas::from_map(bare, room_dest);
+                let mut soft = view::Canvas { px: plain.px.clone(), fore: Vec::new() };
+                soft.soften(4, 0.5);
+                self.backdrop = Some((g.backdrop_serial, plain, soft));
+            }
+            if let Some((_, plain, soft)) = &self.backdrop {
+                room.soften_backdrop(plain, soft);
+            }
+        }
         let placed = self.placed;
         let screen = self.screen;
         let status = status_line(g, screen);
@@ -238,7 +252,11 @@ impl Term {
         let overlay = self.overlay.clone();
         let _ = self.terminal.draw(|f| {
             let buf: &mut Buffer = f.buffer_mut();
-            view::draw(buf, &room, &placed);
+            if silhouette {
+                view::draw_braille(buf, &room, &placed);
+            } else {
+                view::draw(buf, &room, &placed);
+            }
             for l in &labels {
                 let x = l.x - room_dest.left;
                 let y = l.y - room_dest.top;
@@ -269,6 +287,18 @@ impl Term {
             let st = Style::default().fg(Color::Gray).add_modifier(Modifier::BOLD);
             buf.set_stringn(0, y, &status, area.width as usize, st);
         });
+    }
+}
+
+/// The silhouette view on or off (V).
+fn set_silhouette(g: &mut Game, on: bool) {
+    g.silhouette = on;
+    if on {
+        g.work_src_map.enable_fore();
+        g.main_window_map.enable_fore();
+    } else {
+        g.work_src_map.disable_fore();
+        g.main_window_map.disable_fore();
     }
 }
 
@@ -372,7 +402,7 @@ fn draw_title(g: &mut Game) {
     g.labels.clear();
 }
 
-const TITLE_KEYS: &str = "Enter: play   L: houses   T: scores   H: help   M: sound   B: music   Q: quit";
+const TITLE_KEYS: &str = "Enter: play   L: houses   T: scores   H: help   M: sound   B: music   V: view   Q: quit";
 
 fn title_lines(g: &Game, t: &Term) -> Vec<String> {
     let on = |b: bool| if b { "on" } else { "off" };
@@ -381,7 +411,7 @@ fn title_lines(g: &Game, t: &Term) -> Vec<String> {
         format!("John Calhoun, 1994   house: {}", g.this_house_name),
         String::new(),
         "Arrows fly: Down burns battery, Up fires a rubber band.".into(),
-        format!("Sound {}, music {}.", on(t.sound_on), on(t.music_on)),
+        format!("Sound {}, music {}, {} view (V).", on(t.sound_on), on(t.music_on), if g.silhouette { "silhouette" } else { "original" }),
         String::new(),
         TITLE_KEYS.into(),
     ]
@@ -397,7 +427,7 @@ const HELP_LINES: &[&str] = &[
     "Left, Right   steer (or A, D; a gamepad's d-pad or stick)",
     "Down          burn battery for a burst of speed, or helium to rise",
     "Up, Space     fire a rubber band (if you have any)",
-    "Tab           pause          Q   end the game",
+    "Tab           pause          Q   end the game      V   switch view",
     "",
     "Clocks and stars are points. Folded paper is an extra glider, foil",
     "a shield. Candles, toasters, outlets, darts and the rest are not",
@@ -496,6 +526,11 @@ fn run(slot: &mut Option<Box<Term>>, g: &mut Game, settings: &mut Settings) {
                             }
                         }
                         Cmd::Scores => scores = true,
+                        Cmd::View => {
+                            settings.silhouette = !settings.silhouette;
+                            set_silhouette(g, settings.silhouette);
+                            settings.save();
+                        }
                         _ => {}
                     }
                 }
@@ -537,6 +572,11 @@ fn run(slot: &mut Option<Box<Term>>, g: &mut Game, settings: &mut Settings) {
                                 g.end_pause();
                             }
                             g.keys.quit = true;
+                        }
+                        Cmd::View => {
+                            settings.silhouette = !settings.silhouette;
+                            set_silhouette(g, settings.silhouette);
+                            settings.save();
                         }
                         _ => {}
                     }
@@ -698,6 +738,7 @@ fn main() {
     g.is_play_music_game = settings.music;
     g.high_name = settings.name.clone();
     g.high_banner = settings.banner.clone();
+    set_silhouette(&mut g, settings.silhouette);
     settings.house = house;
     settings.save();
 
@@ -725,6 +766,7 @@ fn main() {
         overlay: Vec::new(),
         sound_on: settings.sound,
         music_on: settings.music,
+        backdrop: None,
     };
     let mut slot = Some(Box::new(term));
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(&mut slot, &mut g, &mut settings)));

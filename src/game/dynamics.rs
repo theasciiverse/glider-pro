@@ -110,7 +110,7 @@ impl Game {
             }
 
             self.work_src_map
-                .copy_mask(&self.toast_src_map, &self.toast_mask_map, src, src, dest);
+                .copy_mask_ink(self.sil("toast"), &self.toast_src_map, &self.toast_mask_map, src, src, dest);
 
             self.add_rect_to_back_rects(&dest);
             let mut dest = self.dinahs[w].whole;
@@ -129,7 +129,7 @@ impl Game {
             let src = self.balloon_src[self.dinahs[w].frame as usize];
 
             self.work_src_map
-                .copy_mask(&self.balloon_src_map, &self.balloon_mask_map, src, src, dest);
+                .copy_mask_ink(self.sil("balloon"), &self.balloon_src_map, &self.balloon_mask_map, src, src, dest);
 
             self.add_rect_to_back_rects(&dest);
             let mut dest = self.dinahs[w].whole;
@@ -148,7 +148,7 @@ impl Game {
             let src = self.copter_src[self.dinahs[w].frame as usize];
 
             self.work_src_map
-                .copy_mask(&self.copter_src_map, &self.copter_mask_map, src, src, dest);
+                .copy_mask_ink(self.sil("copter"), &self.copter_src_map, &self.copter_mask_map, src, src, dest);
 
             self.add_rect_to_back_rects(&dest);
             let mut dest = self.dinahs[w].whole;
@@ -166,7 +166,7 @@ impl Game {
             q_offset_rect(&mut dest, self.play_origin_h, self.play_origin_v);
             let src = self.dart_src[self.dinahs[w].frame as usize];
 
-            self.work_src_map.copy_mask(&self.dart_src_map, &self.dart_mask_map, src, src, dest);
+            self.work_src_map.copy_mask_ink(self.sil("dart"), &self.dart_src_map, &self.dart_mask_map, src, src, dest);
 
             self.add_rect_to_back_rects(&dest);
             let mut dest = self.dinahs[w].whole;
@@ -183,7 +183,7 @@ impl Game {
         q_offset_rect(&mut dest, self.play_origin_h, self.play_origin_v);
         let src = self.ball_src[self.dinahs[w].frame as usize];
 
-        self.work_src_map.copy_mask(&self.ball_src_map, &self.ball_mask_map, src, src, dest);
+        self.work_src_map.copy_mask_ink(self.sil("ball"), &self.ball_src_map, &self.ball_mask_map, src, src, dest);
 
         self.add_rect_to_back_rects(&dest);
         let mut dest = self.dinahs[w].whole;
@@ -199,7 +199,7 @@ impl Game {
         q_offset_rect(&mut dest, self.play_origin_h, self.play_origin_v);
         let src = self.drip_src[self.dinahs[w].frame as usize];
 
-        self.work_src_map.copy_mask(&self.drip_src_map, &self.drip_mask_map, src, src, dest);
+        self.work_src_map.copy_mask_ink(self.sil("drip"), &self.drip_src_map, &self.drip_mask_map, src, src, dest);
 
         self.add_rect_to_back_rects(&dest);
         let mut dest = self.dinahs[w].whole;
@@ -216,7 +216,7 @@ impl Game {
         let src = self.fish_src[self.dinahs[w].frame as usize];
 
         if self.dinahs[w].moving {
-            self.work_src_map.copy_mask(&self.fish_src_map, &self.fish_mask_map, src, src, dest);
+            self.work_src_map.copy_mask_ink(self.sil("fish"), &self.fish_src_map, &self.fish_mask_map, src, src, dest);
             self.add_rect_to_back_rects(&dest);
             let mut dest = self.dinahs[w].whole;
             q_offset_rect(&mut dest, self.play_origin_h, self.play_origin_v);

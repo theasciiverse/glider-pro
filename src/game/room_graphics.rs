@@ -57,6 +57,10 @@ impl Game {
 
         self.num_lights = self.get_number_of_lights(self.local_numbers[CENTRAL_ROOM as usize]);
         self.draw_room_background(self.local_numbers[CENTRAL_ROOM as usize], CENTRAL_ROOM, room_v);
+        // (for the silhouette view: the room's bare background, before its
+        // objects, which the view softens wherever it still shows)
+        self.room_backdrop = Some(self.back_src_map.clone());
+        self.backdrop_serial += 1;
         self.draw_a_rooms_objects(CENTRAL_ROOM, false);
         self.draw_lighting();
 

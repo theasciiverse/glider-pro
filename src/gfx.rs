@@ -101,6 +101,20 @@ pub struct Map {
     pub px: Vec<Rgb>,
     pub clip: Rect,
     pub pen: Pen,
+    /// When set, CopyMask paints solid in this colour: a silhouette, for
+    /// the silhouette view (as `games/glider`).
+    pub ink: Option<Rgb>,
+    /// The silhouettes alone, pixel by pixel, when not empty (see
+    /// `enable_fore`): what the silhouette view draws in sharper
+    /// characters than the room behind. The art's dark parts inside a
+    /// shape are a darker shade of the ink. Copies between maps that both
+    /// keep it carry it along; a copy from one that doesn't clears it.
+    pub fore: Vec<Option<(Rgb, bool)>>,
+}
+
+/// A silhouette's ink where the art is dark.
+pub fn shade(c: Rgb) -> Rgb {
+    c.map(|v| (v as u32 * 9 / 20) as u8)
 }
 
 impl Map {
@@ -108,7 +122,36 @@ impl Map {
     /// white is QuickDraw's back colour).
     pub fn new(r: Rect) -> Map {
         let n = (r.width().max(0) * r.height().max(0)) as usize;
-        Map { bounds: r, px: vec![WHITE; n], clip: r, pen: Pen::default() }
+        Map { bounds: r, px: vec![WHITE; n], clip: r, pen: Pen::default(), ink: None, fore: Vec::new() }
+    }
+
+    /// Keep a silhouette layer (all clear) from now on.
+    pub fn enable_fore(&mut self) {
+        self.fore = vec![None; self.px.len()];
+    }
+
+    pub fn disable_fore(&mut self) {
+        self.fore = Vec::new();
+    }
+
+    pub fn fore_at(&self, x: i32, y: i32) -> Option<(Rgb, bool)> {
+        if self.fore.is_empty() {
+            return None;
+        }
+        self.index(x, y).and_then(|i| self.fore[i])
+    }
+
+    #[inline]
+    fn set_fore(&mut self, x: i32, y: i32, f: Option<(Rgb, bool)>) {
+        if self.fore.is_empty() {
+            return;
+        }
+        let r = self.clip;
+        if x >= r.left && x < r.right && y >= r.top && y < r.bottom
+            && let Some(i) = self.index(x, y)
+        {
+            self.fore[i] = f;
+        }
     }
 
     pub fn sized(w: i32, h: i32) -> Map {
@@ -457,6 +500,10 @@ impl Map {
                 let sx = sr.left + (x - dr.left) * sw / dw;
                 if let Some(i) = src.index(sx, sy) {
                     self.set(x, y, src.px[i]);
+                    if !self.fore.is_empty() {
+                        let f = if src.fore.is_empty() { None } else { src.fore[i] };
+                        self.set_fore(x, y, f);
+                    }
                 }
             }
         }
@@ -501,10 +548,29 @@ impl Map {
                 if mask.get(mx, my)[0] < 128
                     && let Some(i) = src.index(sr.left + ox, sr.top + oy)
                 {
-                    self.set(x, y, src.px[i]);
+                    match self.ink {
+                        None => self.set(x, y, src.px[i]),
+                        Some(c) => {
+                            // the art's dark parts inside the shape a
+                            // shade of the ink (a glider's lower wing)
+                            let inside = [(-1, 0), (1, 0), (0, -1), (0, 1)].iter().all(|(dx, dy)| mask.get(mx + dx, my + dy)[0] < 128);
+                            let dark = src.px[i].iter().all(|&v| v < 100);
+                            let c = if inside && dark { shade(c) } else { c };
+                            self.set(x, y, c);
+                            self.set_fore(x, y, Some((c, true)));
+                        }
+                    }
                 }
             }
         }
+    }
+
+    /// CopyMask painting in `ink` if given (a silhouette), else the art.
+    pub fn copy_mask_ink(&mut self, ink: Option<Rgb>, src: &Map, mask: &Map, sr: Rect, mr: Rect, dr: Rect) {
+        let was = self.ink;
+        self.ink = ink;
+        self.copy_mask(src, mask, sr, mr, dr);
+        self.ink = was;
     }
 
     /// DrawPicture: a decoded picture stretched into `dr`.

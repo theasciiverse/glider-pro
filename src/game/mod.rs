@@ -769,6 +769,13 @@ pub struct Game {
     pub rand_seed: u32,
 
     // --- the terminal
+    /// The silhouette view: moving things drawn as solid shapes in inks by
+    /// role (`sil`), the room's background softened.
+    pub silhouette: bool,
+    /// The central room's background before its objects (`draw_locale`),
+    /// and a number that changes with each new one.
+    pub room_backdrop: Option<Map>,
+    pub backdrop_serial: u32,
     /// `thisMac.screen`: a 512 x 362 screen, so the work map (screen less
     /// the scoreboard) holds one room under the scoreboard's 20 rows.
     pub screen: Rect,
@@ -792,7 +799,57 @@ pub struct Game {
     pub sound_queue: Vec<(i32, i32)>,
 }
 
+/// Silhouette colours, as `games/glider`'s: hazards warm, prizes bright
+/// and cool, the glider brightest.
+pub mod ink {
+    use crate::mac::Rgb;
+    pub const GLIDER: Rgb = [250, 250, 255];
+    pub const FOIL: Rgb = [215, 225, 240];
+    pub const GLIDER2: Rgb = [255, 235, 150];
+    pub const SHADOW: Rgb = [16, 16, 24];
+    pub const FLAME: Rgb = [255, 150, 40];
+    pub const SPARK: Rgb = [130, 225, 255];
+    pub const POINTS: Rgb = [255, 230, 90];
+    pub const DANGER: Rgb = [230, 70, 60];
+    pub const TOAST: Rgb = [220, 165, 95];
+    pub const FISH: Rgb = [255, 140, 40];
+    pub const WATER: Rgb = [90, 160, 255];
+    pub const DART: Rgb = [235, 235, 235];
+    pub const BALLOON: Rgb = [245, 80, 120];
+    pub const COPTER: Rgb = [200, 120, 230];
+    pub const BAND: Rgb = [235, 175, 95];
+    pub const SHRED: Rgb = [225, 225, 230];
+}
+
 impl Game {
+    /// The ink for a sprite from the source map named `of` (`toast` for
+    /// `toast_src_map`), in the silhouette view; None draws the art.
+    pub fn sil(&self, of: &str) -> Option<crate::mac::Rgb> {
+        if !self.silhouette {
+            return None;
+        }
+        Some(match of {
+            "glid" => ink::GLIDER,
+            "glid2" => {
+                if self.two_player_game { ink::GLIDER2 } else { ink::FOIL }
+            }
+            "shadow" => ink::SHADOW,
+            "toast" => ink::TOAST,
+            "balloon" => ink::BALLOON,
+            "copter" => ink::COPTER,
+            "dart" => ink::DART,
+            "ball" => ink::DANGER,
+            "drip" => ink::WATER,
+            "fish" => ink::FISH,
+            "bands" => ink::BAND,
+            "bonus" => ink::SPARK,
+            "points" => ink::POINTS,
+            "shred" => ink::SHRED,
+            "blower" => ink::FLAME,
+            _ => return None,
+        })
+    }
+
     /// DelayTicks: show the screen and wait, time going on.
     pub fn delay_ticks(&mut self, n: i32) {
         if let Some(mut io) = self.screen_io.take() {

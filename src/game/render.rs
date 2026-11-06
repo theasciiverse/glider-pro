@@ -335,7 +335,7 @@ impl Game {
 
                     let s = self.points_src[p.mode as usize];
                     self.work_src_map
-                        .copy_mask(&self.points_src_map, &self.points_mask_map, s, s, p.dest);
+                        .copy_mask_ink(self.sil("points"), &self.points_src_map, &self.points_mask_map, s, s, p.dest);
 
                     self.add_rect_to_work_rects(&p.whole);
                     self.add_rect_to_back_rects(&p.dest);
@@ -363,7 +363,7 @@ impl Game {
                 } else {
                     let src = self.sparkle_src[s.mode as usize];
                     self.work_src_map
-                        .copy_mask(&self.bonus_src_map, &self.bonus_mask_map, src, src, s.bounds);
+                        .copy_mask_ink(self.sil("bonus"), &self.bonus_src_map, &self.bonus_mask_map, src, src, s.bounds);
 
                     self.add_rect_to_work_rects(&s.bounds);
                     self.add_rect_to_back_rects(&s.bounds);
@@ -421,16 +421,16 @@ impl Game {
                 src.right = src.left + (dest.right - dest.left);
 
                 self.work_src_map
-                    .copy_mask(&self.shadow_src_map, &self.shadow_mask_map, src, src, dest);
+                    .copy_mask_ink(self.sil("shadow"), &self.shadow_src_map, &self.shadow_mask_map, src, src, dest);
             } else if gl.mode == GLIDER_COMING_DOWN {
                 let mut src = self.shadow_src[which];
                 src.left = src.right - (dest.right - dest.left);
 
                 self.work_src_map
-                    .copy_mask(&self.shadow_src_map, &self.shadow_mask_map, src, src, dest);
+                    .copy_mask_ink(self.sil("shadow"), &self.shadow_src_map, &self.shadow_mask_map, src, src, dest);
             } else {
                 let s = self.shadow_src[which];
-                self.work_src_map.copy_mask(&self.shadow_src_map, &self.shadow_mask_map, s, s, dest);
+                self.work_src_map.copy_mask_ink(self.sil("shadow"), &self.shadow_src_map, &self.shadow_mask_map, s, s, dest);
             }
             let mut src = gl.whole_shadow;
             q_offset_rect(&mut src, self.play_origin_h, self.play_origin_v);
@@ -444,14 +444,14 @@ impl Game {
         if one_or_two {
             if !self.two_player_game && self.show_foil {
                 self.work_src_map
-                    .copy_mask(&self.glid2_src_map, &self.glid_mask_map, gl.src, gl.mask, dest);
+                    .copy_mask_ink(self.sil("glid2"), &self.glid2_src_map, &self.glid_mask_map, gl.src, gl.mask, dest);
             } else {
                 self.work_src_map
-                    .copy_mask(&self.glid_src_map, &self.glid_mask_map, gl.src, gl.mask, dest);
+                    .copy_mask_ink(self.sil("glid"), &self.glid_src_map, &self.glid_mask_map, gl.src, gl.mask, dest);
             }
         } else {
             self.work_src_map
-                .copy_mask(&self.glid2_src_map, &self.glid_mask_map, gl.src, gl.mask, dest);
+                .copy_mask_ink(self.sil("glid2"), &self.glid2_src_map, &self.glid_mask_map, gl.src, gl.mask, dest);
         }
 
         let mut src = gl.whole;
@@ -471,7 +471,7 @@ impl Game {
             let mut dest = self.bands[i].dest;
             q_offset_rect(&mut dest, self.play_origin_h, self.play_origin_v);
             let s = self.band_rects[self.bands[i].mode as usize];
-            self.work_src_map.copy_mask(&self.bands_src_map, &self.bands_mask_map, s, s, dest);
+            self.work_src_map.copy_mask_ink(self.sil("bands"), &self.bands_src_map, &self.bands_mask_map, s, s, dest);
 
             self.add_rect_to_work_rects(&dest);
             self.add_rect_to_back_rects(&dest);
@@ -495,7 +495,7 @@ impl Game {
                     let mut dest = b;
                     q_offset_rect(&mut dest, self.play_origin_h, self.play_origin_v);
                     self.work_src_map
-                        .copy_mask(&self.shred_src_map, &self.shred_mask_map, src, src, dest);
+                        .copy_mask_ink(self.sil("shred"), &self.shred_src_map, &self.shred_mask_map, src, src, dest);
                     self.add_rect_to_back_rects(&dest);
                     dest.top -= 1;
                     self.add_rect_to_work_rects(&dest);
@@ -508,7 +508,7 @@ impl Game {
                     self.shreds[i].frame += 1;
                     if self.shreds[i].frame < 20 {
                         let s = self.shred_src_rect;
-                        self.work_src_map.copy_mask(&self.shred_src_map, &self.shred_mask_map, s, s, dest);
+                        self.work_src_map.copy_mask_ink(self.sil("shred"), &self.shred_src_map, &self.shred_mask_map, s, s, dest);
                     } else {
                         // AddSparkle offsets the shred's own bounds, as in the C
                         let mut b = self.shreds[i].bounds;
