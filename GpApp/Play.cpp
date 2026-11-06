@@ -280,13 +280,13 @@ void DoDemoGame (void)
 	PasStringCopy(theHousesSpecs[thisHouseIndex].m_name, thisHouseName);
 	if (OpenHouse(true))
 	{
-		if (thisMac.isTouchscreen)
+		if (UseMainMenuUI())
 			DismissMainMenuUI();
 
 		demoGoing = true;
 		NewGame(kNewGameMode);
 
-		if (thisMac.isTouchscreen)
+		if (UseMainMenuUI())
 			StartMainMenuUI();
 	}
 	whoCares = CloseHouse();

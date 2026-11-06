@@ -316,6 +316,54 @@ if(CMAKE_HOST_UNIX)
 endif()
 
 
+# Asciiverse: the game in a terminal, on notcurses (display, keyboard, mouse);
+# sound and gamepads stay on SDL, which needs no window for them.
+if(CMAKE_HOST_UNIX AND NOT PLATFORM STREQUAL "MAC")
+	# AV_NOTCURSES_PREFIX: the static notcurses that asciiverse/build.sh makes
+	# (patched for tmux 3.4 and newer); without it, the installed one.
+	SET(AV_NOTCURSES_PREFIX "" CACHE PATH "Static notcurses prefix from asciiverse/build.sh")
+	if(AV_NOTCURSES_PREFIX)
+		find_library(AV_DEFLATE NAMES libdeflate.a REQUIRED)
+		find_library(AV_TINFO NAMES libtinfo.a REQUIRED)
+		add_library(av_notcurses INTERFACE)
+		target_include_directories(av_notcurses INTERFACE "${AV_NOTCURSES_PREFIX}/include")
+		target_link_libraries(av_notcurses INTERFACE
+			"${AV_NOTCURSES_PREFIX}/lib/libnotcurses-core.a"
+			"${AV_NOTCURSES_PREFIX}/lib/libunistring.a"
+			${AV_DEFLATE} ${AV_TINFO} pthread m)
+		set(AV_NOTCURSES_LIB av_notcurses)
+	else()
+		find_package(PkgConfig REQUIRED)
+		pkg_check_modules(NOTCURSES REQUIRED IMPORTED_TARGET notcurses-core)
+		set(AV_NOTCURSES_LIB PkgConfig::NOTCURSES)
+	endif()
+
+	add_executable(glider-pro
+		AerofoilPortable/GpSystemServices_POSIX.cpp
+		AerofoilPortable/GpThreadEvent_Cpp11.cpp
+		AerofoilPortable/GpAllocator_C.cpp
+		AerofoilSDL/GpAudioDriver_SDL2.cpp
+		AerofoilSDL/GpInputDriver_SDL_Gamepad.cpp
+		AerofoilTerm/GpDisplayDriver_Notcurses.cpp
+		AerofoilTerm/GpMain_Term.cpp
+		AerofoilX/GpLogDriver_X.cpp
+		AerofoilX/GpSystemServices_X.cpp
+		AerofoilX/GpFileSystem_X.cpp
+		)
+	target_include_directories(glider-pro PRIVATE
+		Common
+		GpCommon
+		GpShell
+		AerofoilSDL
+		AerofoilPortable
+		AerofoilX
+		PortabilityLayer
+		${SDL2_INCLUDE_DIRS}
+		)
+	target_link_libraries(glider-pro ${SDL2_LIBRARIES} GpApp GpShell PortabilityLayer ${AV_NOTCURSES_LIB})
+	install(TARGETS glider-pro COMPONENT Terminal)
+endif()
+
 add_executable(flattenmov EXCLUDE_FROM_ALL flattenmov/flattenmov.cpp AerofoilPortable/GpAllocator_C.cpp)
 target_include_directories(flattenmov PRIVATE
 	Common

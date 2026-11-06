@@ -1,4 +1,5 @@
 #include "MainMenuUI.h"
+#include "Environ.h"
 
 #include "FontFamily.h"
 #include "GpApplicationName.h"
@@ -213,6 +214,18 @@ void StartScrollForPage()
 			DrawMainMenuControl(control.m_window->GetDrawSurface(), static_cast<MainMenuUIState::ControlID>(i), false);
 		}
 	}
+}
+
+static bool gs_useMainMenuUI = false;
+
+void SetUseMainMenuUI(bool useMainMenuUI)
+{
+	gs_useMainMenuUI = useMainMenuUI;
+}
+
+bool UseMainMenuUI()
+{
+	return gs_useMainMenuUI || thisMac.isTouchscreen;
 }
 
 void StartMainMenuUI()

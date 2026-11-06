@@ -69,3 +69,7 @@ SDL2-2.30.5/Xcode/SDL/SDL.xcodeproj/xcuserdata/*
 AerofoilMac/Resources/*.gpf
 AerofoilMac/Resources/Houses/*.gpf
 AerofoilMac/*.xcodeproj/project.xcworkspace/xcuserdata
+av-build/
+build/
+inst/
+target/

@@ -641,7 +641,7 @@ int AppStartup()
 
 	UpdateMainWindow();
 
-	if (thisMac.isTouchscreen)
+	if (UseMainMenuUI())
 		StartMainMenuUI();
 
 	return 0;
