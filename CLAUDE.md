@@ -110,9 +110,28 @@ the next room, all inside tmux in half blocks.
 Licence for this: Aerofoil GPL-2.0-or-later, notcurses Apache-2.0 (fine with GPLv3,
 see Sources).
 
+## Open: pixels or terminal cells (2026-11-06)
+
+In a terminal with pixel graphics (David's, kitty graphics) notcurses shows the frame
+as real pixels: the 1994 Mac game exactly, in a window. David: "the graphics are too
+good". Recommended, not yet decided:
+
+1. Never pixels by default: start in a cell view (sextants where the terminal has
+   them, else quadrants or half blocks), V cycles views, as `games/glider`. Pixels
+   either dropped or behind a flag (recommended: dropped).
+2. Later (plan step 6): the silhouette view as in `games/glider` (Braille, box-drawn
+   furniture), which needs small hooks in GpApp for where things are.
+
 ## Commands
 
+A fresh Linux machine needs cmake (3.26 or later), g++, git, curl, pkg-config and the
+dev packages for SDL2, FreeType, libdeflate and ncurses (Debian/Ubuntu: `libsdl2-dev
+libfreetype-dev libdeflate-dev libncurses-dev`; the script installs them itself when run
+as root on Ubuntu). It fetches the zlib submodule and builds libunistring and notcurses
+into `av-build/` on first run.
+
 ```bash
+git switch asciiverse
 sh asciiverse/build.sh                        # static notcurses, data, then the game
 av-build/install/bin/glider-pro               # data in av-build/install/lib/aerofoil/Packaged
 av-build/install/bin/glider-pro -diagnostics  # with the log

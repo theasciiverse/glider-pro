@@ -19,7 +19,7 @@ if [ -f /etc/os-release ] && grep -q '^ID=ubuntu' /etc/os-release && [ "$(id -u)
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -qq
   apt-get install -y -qq build-essential cmake git curl pkg-config \
-    libncurses-dev libdeflate-dev libsdl2-dev >/dev/null
+    libncurses-dev libdeflate-dev libsdl2-dev libfreetype-dev >/dev/null
 fi
 
 root=$(pwd)
