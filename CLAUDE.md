@@ -123,9 +123,14 @@ scoreboard's figures (room, gliders, score) are shown as the status line
   main; the view draws those cells with Glider's shape matcher. The room's background
   is softened (Glider's blur and dim) wherever it still shows: `draw_locale` keeps the
   bare background (`room_backdrop`) before the objects are drawn, and the view swaps
-  in its softened copy pixel by pixel. Objects keep their art. Not yet: flames, stars,
-  pendulums (drawn via saved maps), furniture flattened with box-drawn edges as in
-  Glider.
+  in its softened copy pixel by pixel. Objects keep their art; flames are inked too.
+  Furniture as in Glider (David, 2026-11-07, "do the same as for what we did with
+  glider"): what Calhoun drew with QuickDraw (table, deck table, shelf, cabinet,
+  counter, dresser, mirror) is flat in wood and glass tones (`game/flat.rs`), and its
+  edges (`room_edges`, room coordinates) are box-drawn over the picture by
+  `view::draw_edges` (Glider's, skipping cells with a silhouette in them). V during
+  play redraws the room for the other view (`redraw_for_view`, RedrawRoomLighting's
+  way, so flames and enemies go on).
 
 ## Controls
 

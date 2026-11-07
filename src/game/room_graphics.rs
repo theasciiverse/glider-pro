@@ -11,6 +11,7 @@ impl Game {
     pub fn draw_locale(&mut self) {
         // (the last room's text goes with it: a calendar's month)
         self.labels.clear();
+        self.room_edges.clear();
         self.zero_flames_and_the_like();
         self.zero_dinahs();
         self.kill_all_bands();

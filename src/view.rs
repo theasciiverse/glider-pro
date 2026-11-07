@@ -490,3 +490,95 @@ fn sharp_cell(c: &Canvas, x0: i32, x1: i32, y0: i32, y1: i32) -> Option<(char, R
     let (_, ch, f, b) = best;
     Some(if ch == ' ' { (' ', cols[b], cols[b]) } else { (ch, cols[f], cols[b]) })
 }
+
+/// The house's straight edges in box-drawing characters over the picture,
+/// skipping the cells under anything that moves, so the glider passes in
+/// front of a table, not behind its outline. Bars and posts are heavy;
+/// where one ends in the middle of a cell it ends in a half line.
+pub fn draw_edges(buf: &mut Buffer, p: &Placed, edges: &[(crate::game::flat::Edge, Rgb)], c: &Canvas) {
+    use crate::game::flat::Edge;
+    let r = p.cells;
+    let (cols, rows) = (r.width as f32, r.height as f32);
+    let fx = |x: i32| x as f32 * cols / W as f32;
+    let fy = |y: i32| y as f32 * rows / H as f32;
+    // a cell with a silhouette in it (the glider, anything that moves)
+    let blocked_cell = |cx: i32, cy: i32| -> bool {
+        if c.fore.is_empty() {
+            return false;
+        }
+        let (x0, x1) = (cx * W / cols as i32, ((cx + 1) * W / cols as i32).min(W));
+        let (y0, y1) = (cy * H / rows as i32, ((cy + 1) * H / rows as i32).min(H));
+        (y0..y1).any(|y| (x0..x1).any(|x| c.fore[(y * W + x) as usize].is_some()))
+    };
+    let put = |buf: &mut Buffer, cx: i32, cy: i32, ch: char, col: Rgb| {
+        if cx < 0 || cy < 0 || cx >= r.width as i32 || cy >= r.height as i32 {
+            return;
+        }
+        if blocked_cell(cx, cy) {
+            return;
+        }
+        let cell = &mut buf[(r.x + cx as u16, r.y + cy as u16)];
+        // a bar landing on a post's top makes a tee
+        let ch = match (cell.symbol(), ch) {
+            ("┃" | "╻", '━') => '┳',
+            _ => ch,
+        };
+        // keep the cell's background, the edge in front of it
+        let bg = cell.bg;
+        let bg = if bg == ratatui::style::Color::Reset { rgb([0; 3]) } else { bg };
+        cell.set_char(ch).set_fg(rgb(col)).set_bg(bg);
+    };
+    for &(e, col) in edges {
+        match e {
+            Edge::Post(b) => {
+                let cx = fx((b.left + b.right) / 2).floor() as i32;
+                let (y0, y1) = (fy(b.top), fy(b.bottom));
+                let (top, bot) = (y0.floor() as i32, (y1.ceil() as i32 - 1).max(y0.floor() as i32));
+                for cy in top..=bot {
+                    let ch = if cy == top && y0.fract() >= 0.5 {
+                        '╻'
+                    } else if cy == bot && y1 - bot as f32 <= 0.5 {
+                        '╹'
+                    } else {
+                        '┃'
+                    };
+                    put(buf, cx, cy, ch, col);
+                }
+            }
+            Edge::Bar(b) => {
+                let cy = fy((b.top + b.bottom) / 2).floor() as i32;
+                let (x0, x1) = (fx(b.left), fx(b.right));
+                let (first, last) = (x0.floor() as i32, (x1.ceil() as i32 - 1).max(x0.floor() as i32));
+                for cx in first..=last {
+                    let ch = if cx == first && x0.fract() >= 0.5 {
+                        '╺'
+                    } else if cx == last && x1 - last as f32 <= 0.5 {
+                        '╸'
+                    } else {
+                        '━'
+                    };
+                    put(buf, cx, cy, ch, col);
+                }
+            }
+            Edge::Outline(b) => {
+                let (left, right) = (fx(b.left).floor() as i32, (fx(b.right).ceil() as i32 - 1));
+                let (top, bot) = (fy(b.top).floor() as i32, (fy(b.bottom).ceil() as i32 - 1));
+                if right - left < 2 || bot - top < 1 {
+                    continue;
+                }
+                for cx in left + 1..right {
+                    put(buf, cx, top, '─', col);
+                    put(buf, cx, bot, '─', col);
+                }
+                for cy in top + 1..bot {
+                    put(buf, left, cy, '│', col);
+                    put(buf, right, cy, '│', col);
+                }
+                put(buf, left, top, '┌', col);
+                put(buf, right, top, '┐', col);
+                put(buf, left, bot, '└', col);
+                put(buf, right, bot, '┘', col);
+            }
+        }
+    }
+}

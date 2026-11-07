@@ -16,6 +16,7 @@
 #![allow(dead_code, clippy::too_many_arguments, clippy::collapsible_if, clippy::collapsible_else_if)]
 
 pub mod defs;
+pub mod flat;
 pub mod rect_utils;
 pub mod player;
 pub mod interactions;
@@ -776,6 +777,9 @@ pub struct Game {
     /// and a number that changes with each new one.
     pub room_backdrop: Option<Map>,
     pub backdrop_serial: u32,
+    /// The furniture's edges in the silhouette view (`flat`), for the
+    /// view's box-drawing overlay; with each room drawn.
+    pub room_edges: Vec<(flat::Edge, crate::mac::Rgb)>,
     /// `thisMac.screen`: a 512 x 362 screen, so the work map (screen less
     /// the scoreboard) holds one room under the scoreboard's 20 rows.
     pub screen: Rect,

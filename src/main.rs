@@ -271,10 +271,12 @@ impl Term {
         let status = status_line(g, screen);
         let labels: Vec<game::Label> = g.labels.clone();
         let overlay = self.overlay.clone();
+        let edges = g.room_edges.clone();
         let _ = self.terminal.draw(|f| {
             let buf: &mut Buffer = f.buffer_mut();
             if silhouette {
                 view::draw_braille(buf, &room, &placed);
+                view::draw_edges(buf, &placed, &edges, &room);
             } else {
                 view::draw(buf, &room, &placed);
             }
@@ -649,6 +651,8 @@ fn play(slot: &mut Option<Box<Term>>, g: &mut Game, settings: &mut Settings) {
                         settings.silhouette = !settings.silhouette;
                         set_silhouette(g, settings.silhouette);
                         settings.save();
+                        // the furniture is drawn differently in each view
+                        g.redraw_for_view();
                     }
                     _ => {}
                 }
@@ -840,6 +844,7 @@ fn smoke(a: Rc<Assets>, house: &str, frames: u32) {
         let mut buf = Buffer::empty(area);
         if sil {
             view::draw_braille(&mut buf, &room, &placed);
+            view::draw_edges(&mut buf, &placed, &g.room_edges, &room);
         } else {
             view::draw(&mut buf, &room, &placed);
         }
