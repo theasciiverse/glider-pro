@@ -165,7 +165,7 @@ stay as shipped, as the C's locked houses, whose scores went to a file).
 were read. Nothing like the games skipped before; the one thing for David to decide:
 The Asylum Pro (by Steve Sullivan, credited in the README) is a
 mental-asylum joke throughout ("Lunatic Lounge", "Automatic For Our Patients", "You
-must be crazy!"), 1990s-mild. Left in, as a classic. Elsewhere: "Take me drunk, I'm
+must be crazy!"), 1990s-mild. Kept: David, 2026-11-07, "then keep it". Elsewhere: "Take me drunk, I'm
 home", "Pipe Bomb" (room names). Text inside the houses' pictures was not read.
 
 ## Catalog preview (2026-11-07)
