@@ -146,7 +146,11 @@ stay as shipped, as the C's locked houses, whose scores went to a file).
 - `--frames N [HOUSE]` plays N frames headless. Env: `GLIDER_PRO_HOLD=right,batt`
   (keys held), `GLIDER_PRO_DEMO=1` (the recorded demo), `GLIDER_PRO_TRACE=k`
   (`_FROM=f`): the glider every k frames; `GLIDER_PRO_EVENTS=1`: room changes and lost
-  gliders; `GLIDER_PRO_SHOT=file.ppm`: the main window at the end.
+  gliders; `GLIDER_PRO_SHOT=file.ppm`: the main window at the end;
+  `GLIDER_PRO_CELLS=file` (+ `GLIDER_PRO_VIEW=original`): the terminal's cells
+  (120 x 39) as ANSI text; `GLIDER_PRO_MONKEY=seed`: random keys, game after game;
+  `GLIDER_PRO_TWO=1`: a two-player game (`HOLD` takes `left2`, `right2`).
+  Monkey run of 2026-11-07: 21 houses x 4 seeds x 30000 frames, no panic.
   `RUST_LOG=glider_pro=debug` logs every hot spot hit.
 - `cargo test --release`: data decodes, every built-in house plays 1500 frames four
   ways and through a game's end (`every_house_plays`).

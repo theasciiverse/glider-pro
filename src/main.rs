@@ -733,6 +733,9 @@ fn smoke(a: Rc<Assets>, house: &str, frames: u32) {
     };
     g.screen_io = Some(Box::new(NoIo));
     g.demo_going = std::env::var_os("GLIDER_PRO_DEMO").is_some();
+    if std::env::var_os("GLIDER_PRO_CELLS").is_some() {
+        set_silhouette(&mut g, std::env::var("GLIDER_PRO_VIEW").map_or(true, |v| v != "original"));
+    }
     g.two_player_game = std::env::var_os("GLIDER_PRO_TWO").is_some();
     if let Ok(h2) = std::env::var("GLIDER_PRO_SWITCH_TO") {
         load_house(&mut g, &h2);
@@ -817,6 +820,39 @@ fn smoke(a: Rc<Assets>, house: &str, frames: u32) {
         g.the_score,
         g.mortals
     );
+    // GLIDER_PRO_CELLS=file: the terminal's cells (120 x 39, as tmux's
+    // capture-pane -e would give them), in the view from GLIDER_PRO_VIEW
+    // (silhouette or original)
+    if let Ok(path) = std::env::var("GLIDER_PRO_CELLS") {
+        let sil = std::env::var("GLIDER_PRO_VIEW").map_or(true, |v| v != "original");
+        let dest = g.local_rooms_dest[0];
+        let mut room = view::Canvas::from_map(&g.main_window_map, dest);
+        if sil && let Some(bare) = &g.room_backdrop {
+            let plain = view::Canvas::from_map(bare, dest);
+            let mut soft = view::Canvas { px: plain.px.clone(), fore: Vec::new() };
+            soft.soften(4, 0.5);
+            room.soften_backdrop(&plain, &soft);
+        }
+        let area = Area::new(0, 0, 120, 39);
+        let placed = view::place(area, 2.0);
+        let mut buf = Buffer::empty(area);
+        if sil {
+            view::draw_braille(&mut buf, &room, &placed);
+        } else {
+            view::draw(&mut buf, &room, &placed);
+        }
+        let mut out = String::new();
+        for y in 0..area.height {
+            for x in 0..area.width {
+                let c = &buf[(x, y)];
+                let rgb = |c: Color| if let Color::Rgb(r, g, b) = c { (r, g, b) } else { (0, 0, 0) };
+                let (f, b) = (rgb(c.fg), rgb(c.bg));
+                out += &format!("\x1b[38;2;{};{};{}m\x1b[48;2;{};{};{}m{}", f.0, f.1, f.2, b.0, b.1, b.2, c.symbol());
+            }
+            out += "\x1b[0m\n";
+        }
+        let _ = std::fs::write(path, out);
+    }
     if let Ok(path) = std::env::var("GLIDER_PRO_SHOT") {
         let m = &g.main_window_map;
         let mut out = format!("P6 {} {} 255\n", m.width(), m.height()).into_bytes();
