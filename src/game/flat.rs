@@ -101,6 +101,7 @@ impl Game {
         self.draw_room_background(self.local_numbers[CENTRAL_ROOM as usize], CENTRAL_ROOM, room_v);
         self.room_backdrop = Some(self.back_src_map.clone());
         self.backdrop_serial += 1;
+        self.begin_sharp_art();
         self.draw_a_rooms_objects(CENTRAL_ROOM, true);
         self.draw_lighting();
         self.restore_work_map();

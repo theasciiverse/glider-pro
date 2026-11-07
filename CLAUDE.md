@@ -131,6 +131,21 @@ scoreboard's figures (room, gliders, score) are shown as the status line
   `view::draw_edges` (Glider's, skipping cells with a silhouette in them). V during
   play redraws the room for the other view (`redraw_for_view`, RedrawRoomLighting's
   way, so flames and enemies go on).
+- **House objects** (David, 2026-11-07: some "just look like blobs"; give them Glider's
+  level of detail): the Braille cells keep each dot's brightest pixel, which loses an
+  object's dark detail. `game/sharp.rs` lists kinds by look, chosen object by object from
+  renders, as Glider's `draw::sharp_art`: **Sharp** (through the shape matcher in their
+  own colours, without the dark outline around them) and **Picture** (custom pictures
+  and other big busy art in half blocks, each half the average under it, as the original
+  view: the matcher made glyph noise of the quilt, Braille lost its dark diamonds);
+  the rest stay in Braille. While a listed kind is drawn into the back map
+  (`draw_a_rooms_objects`, central room only) the map is filled with a sentinel colour,
+  so every pixel it covers shows even where the room's picture has the same colour
+  (Demo House paints its vase into the wall); those pixels go to `Game::sharp_art`
+  (a map's `fore`: colour, and the picture flag), begun with each `room_backdrop`.
+  The view (`Canvas::sharpen_art`) takes a tagged pixel only while the picture still
+  shows that colour, so a collected or erased object drops out. Objects redrawn later
+  on their own (a switch flipped) keep the tags from the room's drawing.
 
 ## Controls
 
@@ -156,7 +171,11 @@ stay as shipped, as the C's locked houses, whose scores went to a file).
   gliders; `GLIDER_PRO_SHOT=file.ppm`: the main window at the end;
   `GLIDER_PRO_CELLS=file` (+ `GLIDER_PRO_VIEW=original`): the terminal's cells
   (120 x 39) as ANSI text; `GLIDER_PRO_MONKEY=seed`: random keys, game after game;
-  `GLIDER_PRO_TWO=1`: a two-player game (`HOLD` takes `left2`, `right2`).
+  `GLIDER_PRO_TWO=1`: a two-player game (`HOLD` takes `left2`, `right2`);
+  `GLIDER_PRO_ROOM=n`: start in room n; `GLIDER_PRO_SHARP` / `GLIDER_PRO_PICTURE`
+  (`all`, `none` or kind numbers): override `game/sharp.rs`'s lists, for comparing
+  renders. `--objects` lists every object kind in the built-in houses with places to
+  see it; `--objects "HOUSE:ROOM"` one room's objects.
   Monkey run of 2026-11-07: 21 houses x 4 seeds x 30000 frames, no panic.
   `RUST_LOG=glider_pro=debug` logs every hot spot hit.
 - `cargo test --release`: data decodes, every built-in house plays 1500 frames four

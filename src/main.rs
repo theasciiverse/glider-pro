@@ -258,11 +258,14 @@ impl Term {
         if silhouette && let Some(bare) = &g.room_backdrop {
             if self.backdrop.as_ref().is_none_or(|b| b.0 != g.backdrop_serial) {
                 let plain = view::Canvas::from_map(bare, room_dest);
-                let mut soft = view::Canvas { px: plain.px.clone(), fore: Vec::new() };
+                let mut soft = view::Canvas { px: plain.px.clone(), fore: Vec::new(), pic: Vec::new() };
                 soft.soften(4, 0.5);
                 self.backdrop = Some((g.backdrop_serial, plain, soft));
             }
             if let Some((_, plain, soft)) = &self.backdrop {
+                if let Some(tag) = &g.sharp_art {
+                    room.sharpen_art(&view::Canvas::from_map(tag, room_dest));
+                }
                 room.soften_backdrop(plain, soft);
             }
         }
@@ -731,6 +734,23 @@ impl ScreenIo for NoIo {
     }
 }
 
+/// The central room as the view gets it: in the silhouette view, with the
+/// sharp objects' art in `fore` and `pic`, and the bare background softened.
+fn room_canvas(g: &Game, sil: bool) -> view::Canvas {
+    let dest = g.local_rooms_dest[0];
+    let mut room = view::Canvas::from_map(&g.main_window_map, dest);
+    if sil && let Some(bare) = &g.room_backdrop {
+        let plain = view::Canvas::from_map(bare, dest);
+        let mut soft = view::Canvas { px: plain.px.clone(), fore: Vec::new(), pic: Vec::new() };
+        soft.soften(4, 0.5);
+        if let Some(tag) = &g.sharp_art {
+            room.sharpen_art(&view::Canvas::from_map(tag, dest));
+        }
+        room.soften_backdrop(&plain, &soft);
+    }
+    room
+}
+
 /// `--frames N`: a game with nobody at the keys, without a terminal.
 fn smoke(a: Rc<Assets>, house: &str, frames: u32) {
     let Some(mut g) = new_game_state(a, house) else {
@@ -831,14 +851,7 @@ fn smoke(a: Rc<Assets>, house: &str, frames: u32) {
     // (silhouette or original)
     if let Ok(path) = std::env::var("GLIDER_PRO_CELLS") {
         let sil = std::env::var("GLIDER_PRO_VIEW").map_or(true, |v| v != "original");
-        let dest = g.local_rooms_dest[0];
-        let mut room = view::Canvas::from_map(&g.main_window_map, dest);
-        if sil && let Some(bare) = &g.room_backdrop {
-            let plain = view::Canvas::from_map(bare, dest);
-            let mut soft = view::Canvas { px: plain.px.clone(), fore: Vec::new() };
-            soft.soften(4, 0.5);
-            room.soften_backdrop(&plain, &soft);
-        }
+        let room = room_canvas(&g, sil);
         let area = Area::new(0, 0, 120, 39);
         let placed = view::place(area, 2.0);
         let mut buf = Buffer::empty(area);
@@ -900,6 +913,30 @@ mod tests {
         assert_eq!(first_loss, Some((1781, 4)));
         assert!(!g.playing);
         assert_eq!((n, g.this_room_number), (3432, 15));
+    }
+
+    /// Demo House's first room in the silhouette view (`game::sharp`): the
+    /// vase is drawn sharp in its own blue (the wall picture has it painted
+    /// in, so it was softened away before), and the quilt, a custom
+    /// picture, goes to half blocks, not to the matcher.
+    #[test]
+    fn house_objects_keep_their_art() {
+        let a = Rc::new(Assets::load());
+        let mut g = new_game_state(a, "Demo House").unwrap();
+        g.screen_io = Some(Box::new(NoIo));
+        set_silhouette(&mut g, true);
+        g.new_game(game::NEW_GAME_MODE);
+        g.force_this_room(0);
+        g.determine_room_openings();
+        g.draw_locale();
+        g.ticks += game::TICKS_PER_FRAME;
+        g.play_game_frame();
+        let room = room_canvas(&g, true);
+        let blue = room.fore.iter().filter(|f| matches!(f, Some((c, false)) if c[2] > 150 && c[0] < 80)).count();
+        assert!(blue > 150, "vase pixels sharp: {blue}");
+        let pic = room.pic.iter().filter(|&&p| p).count();
+        assert!(pic > 20_000, "quilt pixels as picture: {pic}");
+        assert!(room.pic.iter().zip(&room.fore).all(|(&p, f)| !p || !matches!(f, Some((_, false)))));
     }
 
     /// Every room of every built-in house drawn (every object kind's
@@ -989,6 +1026,43 @@ fn main() {
                     println!("== {n}\n banner: {}\n trailer: {}", mac::mac_roman(&h.banner), mac::mac_roman(&h.trailer));
                     let names: Vec<String> = h.rooms.iter().filter(|r| r.suite != house::ROOM_IS_EMPTY).map(|r| mac::mac_roman(&r.name)).collect();
                     println!(" rooms: {}", names.join(" | "));
+                }
+                return;
+            }
+            "--objects" if it.clone().next().is_some_and(|a| a.contains(':')) => {
+                // one room's objects: --objects "HOUSE:ROOM"
+                let spec = it.next().unwrap();
+                let (h, r) = spec.rsplit_once(':').unwrap();
+                let (Some(house), Ok(r)) = (house::load(h), r.parse::<usize>()) else { return };
+                let Some(room) = house.rooms.get(r) else { return };
+                println!("{} ({})", mac::mac_roman(&room.name), spec);
+                for (i, o) in room.objects.iter().enumerate().filter(|(_, o)| o.what != game::defs::OBJECT_IS_EMPTY) {
+                    println!("{i}\t{}\t{:?}", o.what, o.data);
+                }
+                return;
+            }
+            "--objects" => {
+                // every object kind in the built-in houses: kind, count,
+                // and up to six (house, room) places to see it
+                let mut seen: std::collections::BTreeMap<i32, (usize, Vec<String>)> = Default::default();
+                for (n, _) in house::BUILT_IN {
+                    let Some(h) = house::load(n) else { continue };
+                    for (i, r) in h.rooms.iter().enumerate() {
+                        if r.suite == house::ROOM_IS_EMPTY {
+                            continue;
+                        }
+                        for o in r.objects.iter().filter(|o| o.what != game::defs::OBJECT_IS_EMPTY) {
+                            let e = seen.entry(o.what).or_default();
+                            e.0 += 1;
+                            let place = format!("{n}:{i}");
+                            if e.1.len() < 6 && !e.1.contains(&place) {
+                                e.1.push(place);
+                            }
+                        }
+                    }
+                }
+                for (k, (count, places)) in seen {
+                    println!("{k}\t{count}\t{}", places.join(" "));
                 }
                 return;
             }

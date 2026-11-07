@@ -14,6 +14,9 @@ pub const H: i32 = 322;
 pub struct Canvas {
     pub px: Vec<Rgb>,
     pub fore: Vec<Option<(Rgb, bool)>>,
+    /// The silhouette view: pixels of house pictures drawn in half blocks
+    /// (`game::sharp::Look::Picture`); empty when none.
+    pub pic: Vec<bool>,
 }
 
 impl Canvas {
@@ -30,7 +33,7 @@ impl Canvas {
                 }
             }
         }
-        Canvas { px, fore }
+        Canvas { px, fore, pic: Vec::new() }
     }
 
     /// Blur with a (2r+1)-square box and scale the brightness by `k`: what
@@ -65,11 +68,36 @@ impl Canvas {
         }
     }
 
+    /// The silhouette view's house objects of sharp kinds (`game::sharp`):
+    /// where `tag` has the colour the picture still shows (the object was
+    /// not erased or covered since), the pixel goes to `fore` as a thing of
+    /// the house, for the shape matcher, and is not softened.
+    pub fn sharpen_art(&mut self, tag: &Canvas) {
+        if self.fore.is_empty() || tag.fore.is_empty() {
+            return;
+        }
+        for i in 0..self.px.len() {
+            match tag.fore[i] {
+                Some((c, picture)) if self.fore[i].is_none() && c == self.px[i] => {
+                    if picture {
+                        if self.pic.is_empty() {
+                            self.pic = vec![false; self.px.len()];
+                        }
+                        self.pic[i] = true;
+                    } else {
+                        self.fore[i] = Some((c, false));
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
     /// The silhouette view's picture: wherever the room's bare background
     /// still shows (pixels as in `bare`), the softened background instead.
     pub fn soften_backdrop(&mut self, bare: &Canvas, soft: &Canvas) {
         for i in 0..self.px.len() {
-            if self.px[i] == bare.px[i] && self.fore.get(i).is_none_or(|f| f.is_none()) {
+            if self.px[i] == bare.px[i] && self.fore.get(i).is_none_or(|f| f.is_none()) && !self.pic.get(i).is_some_and(|&p| p) {
                 self.px[i] = soft.px[i];
             }
         }
@@ -240,6 +268,34 @@ fn braille_cell(p: &[[Rgb; 4]; 2]) -> (char, Rgb, Rgb) {
     }
 }
 
+/// A cell mostly covered by a house picture (`Canvas::pic`): a half block,
+/// each half the average of the pixels under it, as the original view.
+fn picture_cell(c: &Canvas, x0: i32, x1: i32, y0: i32, y1: i32) -> Option<(char, Rgb, Rgb)> {
+    if c.pic.is_empty() {
+        return None;
+    }
+    let n = (y0..y1).flat_map(|y| (x0..x1).map(move |x| (y * W + x) as usize)).filter(|&i| c.pic[i]).count();
+    if n * 2 <= ((x1 - x0) * (y1 - y0)) as usize {
+        return None;
+    }
+    let avg = |ya: i32, yb: i32| -> Rgb {
+        let mut sum = [0u32; 3];
+        for y in ya..yb {
+            for x in x0..x1 {
+                let px = c.px[(y * W + x) as usize];
+                for k in 0..3 {
+                    sum[k] += px[k] as u32;
+                }
+            }
+        }
+        let n = ((x1 - x0) * (yb - ya)).max(1) as u32;
+        [(sum[0] / n) as u8, (sum[1] / n) as u8, (sum[2] / n) as u8]
+    };
+    let mid = (y0 + y1) / 2;
+    let (top, bot) = (avg(y0, mid), avg(mid, y1));
+    Some(if top == bot { (' ', top, top) } else { ('▀', top, bot) })
+}
+
 /// The picture in Braille cells. Each dot is the brightest Mac pixel under
 /// it, so thin bright things (a glider's wing, a spark) never vanish.
 pub fn draw_braille(buf: &mut Buffer, c: &Canvas, p: &Placed) {
@@ -271,7 +327,9 @@ pub fn draw_braille(buf: &mut Buffer, c: &Canvas, p: &Placed) {
             }
             let (x0, x1) = (xs[cx as usize * 2].0, xs[cx as usize * 2 + 1].1);
             let (y0, y1) = (ys[cy as usize * 4].0, ys[cy as usize * 4 + 3].1);
-            let (ch, fg, bg) = sharp_cell(c, x0, x1, y0, y1).unwrap_or_else(|| braille_cell(&patch));
+            let (ch, fg, bg) = sharp_cell(c, x0, x1, y0, y1)
+                .or_else(|| picture_cell(c, x0, x1, y0, y1))
+                .unwrap_or_else(|| braille_cell(&patch));
             buf[(r.x + cx, r.y + cy)].set_char(ch).set_fg(rgb(fg)).set_bg(rgb(bg));
         }
     }

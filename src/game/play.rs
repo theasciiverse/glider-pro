@@ -246,7 +246,12 @@ impl Game {
     //--------------------------------------------------------------  SetHouseToFirstRoom
 
     pub fn set_house_to_first_room(&mut self) {
-        let first_room = self.get_first_room_number();
+        let mut first_room = self.get_first_room_number();
+        // GLIDER_PRO_ROOM=n: start in room n, for rendering one room's
+        // objects headless (see --objects)
+        if let Some(n) = std::env::var("GLIDER_PRO_ROOM").ok().and_then(|v| v.parse().ok()) {
+            first_room = n;
+        }
         self.force_this_room(first_room);
     }
 

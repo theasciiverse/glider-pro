@@ -64,6 +64,7 @@ impl Game {
         // objects, which the view softens wherever it still shows)
         self.room_backdrop = Some(self.back_src_map.clone());
         self.backdrop_serial += 1;
+        self.begin_sharp_art();
         self.draw_a_rooms_objects(CENTRAL_ROOM, false);
         self.draw_lighting();
 

@@ -17,6 +17,7 @@
 
 pub mod defs;
 pub mod flat;
+pub mod sharp;
 pub mod rect_utils;
 pub mod player;
 pub mod interactions;
@@ -777,6 +778,10 @@ pub struct Game {
     /// and a number that changes with each new one.
     pub room_backdrop: Option<Map>,
     pub backdrop_serial: u32,
+    /// The silhouette view's house objects drawn sharp in their own
+    /// colours (`sharp::KINDS`): black where the central room's objects of
+    /// those kinds drew, white elsewhere; begun with each `room_backdrop`.
+    pub sharp_art: Option<Map>,
     /// The furniture's edges in the silhouette view (`flat`), for the
     /// view's box-drawing overlay; with each room drawn.
     pub room_edges: Vec<(flat::Edge, crate::mac::Rgb)>,

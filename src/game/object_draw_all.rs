@@ -63,6 +63,9 @@ impl Game {
             if self.is_this_valid(room_n, i) {
                 let mut this_object = self.house.rooms[room_n as usize].objects[i as usize];
                 let what = this_object.what;
+                // the silhouette view: some objects' art is kept sharp
+                let sharp = if neighbor == CENTRAL_ROOM && self.silhouette { super::sharp::look(what) } else { None };
+                let before = sharp.map(|_| self.begin_sharp_object());
                 match what {
                     OBJECT_IS_EMPTY => {}
 
@@ -545,6 +548,9 @@ impl Game {
                     }
 
                     _ => {}
+                }
+                if let (Some(before), Some(look)) = (before, sharp) {
+                    self.tag_sharp_art(&before, look);
                 }
             }
 
