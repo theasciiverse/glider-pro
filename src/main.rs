@@ -808,6 +808,35 @@ mod tests {
         assert_eq!((n, g.this_room_number), (3432, 15));
     }
 
+    /// Every room of every built-in house drawn (every object kind's
+    /// drawing and set-up), and a few frames played in it, in both views.
+    #[test]
+    fn every_room_draws() {
+        let a = Rc::new(Assets::load());
+        for (name, _) in house::BUILT_IN {
+            let mut g = new_game_state(a.clone(), name).unwrap();
+            g.screen_io = Some(Box::new(NoIo));
+            g.new_game(game::NEW_GAME_MODE);
+            let rooms: Vec<i32> = (0..g.house.rooms.len() as i32).filter(|&r| g.house.rooms[r as usize].suite != house::ROOM_IS_EMPTY).collect();
+            for (k, r) in rooms.into_iter().enumerate() {
+                set_silhouette(&mut g, k % 2 == 1);
+                g.force_this_room(r);
+                g.determine_room_openings();
+                g.draw_locale();
+                for _ in 0..8 {
+                    if !g.playing {
+                        break;
+                    }
+                    g.ticks += game::TICKS_PER_FRAME;
+                    g.play_game_frame();
+                }
+                if !g.playing {
+                    g.new_game(game::NEW_GAME_MODE);
+                }
+            }
+        }
+    }
+
     /// Every built-in house set up, played for a while with the keys held
     /// in a few ways, and through to the end of a game, without a panic.
     #[test]

@@ -203,6 +203,11 @@ impl Game {
     // A player has knocked a jar of grease over - this function flags that.
 
     pub fn spill_grease(&mut self, who: i32, index: i32) {
+        // (a jar AddGrease had no room for has who -1; the C reads
+        // grease[-1] there)
+        if who < 0 || who as usize >= self.grease.len() {
+            return;
+        }
         if self.grease[who as usize].mode == GREASE_IDLE {
             self.grease[who as usize].mode = GREASE_FALLING;
             self.grease[who as usize].hot_num = index;
