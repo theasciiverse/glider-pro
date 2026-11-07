@@ -69,6 +69,14 @@ pub struct Object {
     pub data: [u8; 10],
 }
 
+impl Object {
+    /// One raw byte of the object's data (for the C's tests of a whole
+    /// byte, as `state == true`).
+    pub fn byte(&self, i: usize) -> u8 {
+        self.data[i]
+    }
+}
+
 fn be16(d: &[u8], at: usize) -> i32 {
     i16::from_be_bytes([d[at], d[at + 1]]) as i32
 }
@@ -77,42 +85,6 @@ fn be32(d: &[u8], at: usize) -> i32 {
     i32::from_be_bytes([d[at], d[at + 1], d[at + 2], d[at + 3]])
 }
 
-impl Object {
-    /// `topLeft`, a Mac Point (v, h), of every kind but furniture and clutter.
-    pub fn top_left(&self) -> (i32, i32) {
-        (be16(&self.data, 2), be16(&self.data, 0))
-    }
-
-    /// `bounds` of furniture and clutter (top, left, bottom, right).
-    pub fn bounds(&self) -> Rect {
-        let d = &self.data;
-        Rect::new(be16(d, 2), be16(d, 0), be16(d, 6), be16(d, 4))
-    }
-
-    /// The 16-bit field after topLeft (distance, length, tall, delay, height).
-    pub fn short4(&self) -> i32 {
-        be16(&self.data, 4)
-    }
-
-    /// The 16-bit field at byte 6 (points, where).
-    pub fn short6(&self) -> i32 {
-        be16(&self.data, 6)
-    }
-
-    /// `pict` of furniture and clutter.
-    pub fn pict(&self) -> i32 {
-        be16(&self.data, 8)
-    }
-
-    pub fn byte(&self, i: usize) -> u8 {
-        self.data[i]
-    }
-
-    /// `initial` and `state` sit in different places by kind; callers pick.
-    pub fn flag(&self, i: usize) -> bool {
-        self.data[i] != 0
-    }
-}
 
 /// A Mac `Point` (v, h stored in that order).
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
@@ -300,11 +272,6 @@ impl House {
             rooms,
             res,
         })
-    }
-
-    /// The room on `floor` in `suite`, if the house has one there.
-    pub fn room_at(&self, floor: i32, suite: i32) -> Option<usize> {
-        self.rooms.iter().position(|r| r.suite != ROOM_IS_EMPTY && r.floor == floor && r.suite == suite)
     }
 }
 

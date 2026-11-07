@@ -19,12 +19,6 @@ fn be32(d: &[u8], at: usize) -> u32 {
 }
 
 /// The resource fork of a MacBinary file.
-pub fn macbinary_rsrc(d: &[u8]) -> &[u8] {
-    let dlen = be32(d, 83) as usize;
-    let rlen = be32(d, 87) as usize;
-    let at = 128 + dlen.div_ceil(128) * 128;
-    &d[at..at + rlen]
-}
 
 /// Every resource in a resource fork.
 pub fn resource_fork(rf: &[u8]) -> Resources {
@@ -431,80 +425,6 @@ pub fn snd(v: &[u8]) -> Option<Sound> {
         }
     }
     None
-}
-
-/// A bitmap font (`FONT`).
-pub struct Font {
-    first: u16,
-    last: u16,
-    kern_max: i32,
-    pub ascent: i32,
-    pub height: i32,
-    row_bytes: usize,
-    image: Vec<u8>,
-    loc: Vec<u16>,
-    ow: Vec<u16>,
-}
-
-impl Font {
-    pub fn parse(v: &[u8]) -> Option<Font> {
-        let first = be16(v, 2);
-        let last = be16(v, 4);
-        let kern_max = be16(v, 8) as i16 as i32;
-        let height = be16(v, 14) as i32;
-        let ascent = be16(v, 18) as i32;
-        let row_words = be16(v, 24) as usize;
-        let row_bytes = row_words * 2;
-        let img_at = 26;
-        let img_len = row_bytes * height as usize;
-        let n = (last - first) as usize + 3;
-        let loc_at = img_at + img_len;
-        let ow_at = loc_at + n * 2;
-        if v.len() < ow_at + n * 2 {
-            return None;
-        }
-        let loc = (0..n).map(|i| be16(v, loc_at + i * 2)).collect();
-        let ow = (0..n).map(|i| be16(v, ow_at + i * 2)).collect();
-        Some(Font { first, last, kern_max, ascent, height, row_bytes, image: v[img_at..img_at + img_len].to_vec(), loc, ow })
-    }
-
-    fn index(&self, c: u8) -> usize {
-        let c = c as u16;
-        let missing = (self.last - self.first + 1) as usize;
-        if c < self.first || c > self.last || self.ow[(c - self.first) as usize] == 0xFFFF {
-            missing
-        } else {
-            (c - self.first) as usize
-        }
-    }
-
-    /// Pen advance for a character.
-    pub fn advance(&self, c: u8) -> i32 {
-        (self.ow[self.index(c)] & 0xFF) as i32
-    }
-
-    pub fn width(&self, s: &[u8]) -> i32 {
-        s.iter().map(|&c| self.advance(c)).sum()
-    }
-
-    /// Calls `put(x, y)` for every set pixel of the string drawn with its
-    /// baseline at `(x, y)`, as QuickDraw's DrawString does.
-    pub fn draw(&self, s: &[u8], mut x: i32, y: i32, mut put: impl FnMut(i32, i32)) {
-        for &c in s {
-            let i = self.index(c);
-            let off = (self.ow[i] >> 8) as i32;
-            let (l0, l1) = (self.loc[i] as usize, self.loc[i + 1] as usize);
-            let gx = x + self.kern_max + off;
-            for row in 0..self.height as usize {
-                for col in l0..l1 {
-                    if self.image[row * self.row_bytes + col / 8] & (0x80 >> (col % 8)) != 0 {
-                        put(gx + (col - l0) as i32, y - self.ascent + row as i32);
-                    }
-                }
-            }
-            x += self.advance(c);
-        }
-    }
 }
 
 /// A Pascal string from a byte slice whose first byte is the length.

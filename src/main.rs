@@ -1,11 +1,18 @@
 mod assets;
+#[allow(dead_code)]
 mod audio;
 mod game;
+#[allow(dead_code)]
 mod gfx;
+#[allow(dead_code)]
 mod house;
+#[allow(dead_code)]
 mod input;
+#[allow(dead_code)]
 mod mac;
+#[allow(dead_code)]
 mod save;
+#[allow(dead_code)]
 mod view;
 
 use assets::Assets;

@@ -3,7 +3,7 @@ name = "glider-pro"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.88"
-description = "Glider PRO (John Calhoun, 1994) in the terminal, based on Aerofoil, for the Asciiverse catalog"
+description = "Glider PRO (John Calhoun, 1994) in the terminal: the paper glider through a house of hundreds of rooms, for the Asciiverse catalog"
 license = "GPL-2.0-or-later"
 publish = false
 
