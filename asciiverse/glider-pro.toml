@@ -1,0 +1,51 @@
+# DRAFT for hub/catalog/glider-pro.toml (not in the hub yet: David's call)
+schema_version = 1
+id = "glider-pro"
+kind = "game"
+title = "Glider PRO"
+description = "John Calhoun's Glider PRO in the terminal: a paper glider through houses of hundreds of rooms, riding the air past candles, toasters, darts, balloons and 'copters"
+year = 1994
+old = true
+# Calhoun's repository (code, art, sounds and houses): GPL 2 ("GPL 2 or
+# later" in his commit of 2016-01-31)
+license = "GPL-2.0-or-later"
+repo = "theasciiverse/glider-pro"
+provenance = "John Calhoun wrote Glider PRO for the Macintosh in C, published by Casady & Greene in 1994, and released its source, art, sounds and houses under the GPL in 2016."
+changes = "CLAUDE.md"
+topics = ["arcade", "classic", "macintosh", "paper airplane", "gamepad", "braille", "rust", "two players"]
+genre = "arcade"
+
+[developer]
+name = "Asciiverse"
+url = "https://asciiverse.sh"
+
+[upstream]
+name = "John Calhoun, 1994"
+url = "https://github.com/softdorothy/GliderPRO"
+
+# the archive holds glider-pro; the art, sounds and the 21 houses are
+# compiled in. Settings and high scores go to $XDG_DATA_HOME/glider-pro
+[exec]
+game = "glider-pro"
+args = []
+
+[min_terminal]
+cols = 60
+rows = 20
+
+[requires]
+utf8 = true
+color = "truecolor"
+gamepad = true
+glyphs = ["braille"]
+system_deps = ["libasound2", "libudev1"]
+
+# 100x30, `glider-pro --demo` (Glider PRO's own recorded demo), silhouette
+# view, the original view from about 22 s to 38 s
+# (asciiverse/record-preview.sh)
+[media]
+cast = "asciiverse/glider-pro.cast"
+thumbnail_at = 12.0
+
+[release]
+source = "github"

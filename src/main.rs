@@ -975,6 +975,16 @@ fn main() {
                 println!("glider-pro {}", env!("CARGO_PKG_VERSION"));
                 return;
             }
+            "--texts" => {
+                // every built-in house's banner, trailer and room names, for reading
+                for (n, _) in house::BUILT_IN {
+                    let Some(h) = house::load(n) else { continue };
+                    println!("== {n}\n banner: {}\n trailer: {}", mac::mac_roman(&h.banner), mac::mac_roman(&h.trailer));
+                    let names: Vec<String> = h.rooms.iter().filter(|r| r.suite != house::ROOM_IS_EMPTY).map(|r| mac::mac_roman(&r.name)).collect();
+                    println!(" rooms: {}", names.join(" | "));
+                }
+                return;
+            }
             "--houses" => {
                 for (n, _) in house::BUILT_IN {
                     println!("{n}");

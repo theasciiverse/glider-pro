@@ -157,6 +157,15 @@ stay as shipped, as the C's locked houses, whose scores went to a file).
 - tmux on a private socket (`tmux -L gptest`), `send-keys`, `capture-pane -e -p -N`
   (tmux carries colours over from the row before: a parser must too).
 
+## Content check (2026-11-07)
+
+`glider-pro --texts` prints every built-in house's banner, trailer and room names; all
+were read. Nothing like the games skipped before; the one thing for David to decide:
+The Asylum Pro (a fan house, Steve's of acmesteve@aol.com, shipped by Calhoun) is a
+mental-asylum joke throughout ("Lunatic Lounge", "Automatic For Our Patients", "You
+must be crazy!"), 1990s-mild. Left in, as a classic. Elsewhere: "Take me drunk, I'm
+home", "Pipe Bomb" (room names). Text inside the houses' pictures was not read.
+
 ## Catalog preview (2026-11-07)
 
 `asciiverse/glider-pro.cast`, 100x30, about 55 s, recorded by
