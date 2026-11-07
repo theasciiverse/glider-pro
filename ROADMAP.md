@@ -3,7 +3,7 @@
 Glider PRO is being rebuilt on Glider's engine (2026-11-06): Calhoun's C translated
 to Rust, his files read directly. 1.0.0 is when everything below is in.
 
-## 0.1.0: plays
+## 0.2.0: built (2026-11-07)
 
 - [x] The play code translated: glider, vents and blowers, hazards, enemies, prizes,
   switches, lights, triggers, grease, rubber bands, transports, stairs, ducts,
@@ -14,7 +14,7 @@ to Rust, his files read directly. 1.0.0 is when everything below is in.
 - [x] Silhouette view (V), as Glider's
 - [x] The demo (D, or after two idle minutes)
 
-## 0.2.0
+## 0.3.0
 
 - [x] The demo replays as recorded (checked 2026-11-07)
 - [ ] Silhouettes for flames, stars, pendulums; furniture flat with box-drawn edges
