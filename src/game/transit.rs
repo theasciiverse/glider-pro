@@ -8,7 +8,14 @@ impl Game {
     //--------------------------------------------------------------  WhatAreWeLinkedTo
 
     pub fn what_are_we_linked_to(&self, where_: i32, who: i32) -> i32 {
-        let what = self.house.rooms[where_ as usize].objects[who as usize].what;
+        // (a transport linked to no room or object: the C reads whatever is
+        // there and most likely takes the default)
+        let what = self
+            .house
+            .rooms
+            .get(where_ as usize)
+            .and_then(|r| r.objects.get(who as usize))
+            .map_or(0, |o| o.what);
 
         match what {
             MAILBOX_LF => LINKED_TO_LEFT_MAILBOX,

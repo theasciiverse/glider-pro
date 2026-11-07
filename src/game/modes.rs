@@ -126,7 +126,19 @@ impl Game {
     fn find_trans_link(&mut self, who: usize) {
         let who_linked = self.hot_spots[who].who;
         self.trans_room = self.master_objects[who_linked as usize].room_link;
-        let obj_linked = self.master_objects[who_linked as usize].object_link;
+        let mut obj_linked = self.master_objects[who_linked as usize].object_link;
+        // (a link to a room or object that isn't there, as in CD Demo House:
+        // the C reads whatever is there; here the glider comes back out of
+        // where it went in)
+        let valid = |g: &Game, r: i32, o: i32| {
+            g.house.rooms.get(r as usize).is_some_and(|room| room.suite != ROOM_IS_EMPTY) && (0..MAX_ROOM_OBS).contains(&o)
+        };
+        if !valid(self, self.trans_room, obj_linked) {
+            let mo = self.master_objects[who_linked as usize];
+            log::warn!("transport in room {} object {} links to nothing", mo.room_num, mo.object_num);
+            self.trans_room = mo.room_num;
+            obj_linked = mo.object_num;
+        }
         self.linked_to_what = self.what_are_we_linked_to(self.trans_room, obj_linked);
 
         let mut obj = self.house.rooms[self.trans_room as usize].objects[obj_linked as usize];

@@ -726,7 +726,34 @@ fn smoke(a: Rc<Assets>, house: &str, frames: u32) {
     let hold_s = std::env::var("GLIDER_PRO_HOLD").unwrap_or_default();
     let hold: Vec<&str> = hold_s.split(',').collect();
     let (mut last_mortals, mut last_room) = (g.mortals, g.this_room_number);
-    while n < frames && g.playing {
+    // GLIDER_PRO_MONKEY=seed: random keys, changed every 20 frames, new
+    // games as they end
+    let mut monkey: Option<u32> = std::env::var("GLIDER_PRO_MONKEY").ok().and_then(|v| v.parse().ok());
+    let mut games = 1;
+    while n < frames && (g.playing || monkey.is_some()) {
+        if let Some(m) = monkey.as_mut() {
+            if !g.playing {
+                g.play_game_finish();
+                g.new_game(game::NEW_GAME_MODE);
+                games += 1;
+            }
+            if n % 20 == 0 {
+                *m ^= *m << 13;
+                *m ^= *m >> 17;
+                *m ^= *m << 5;
+                let r = *m;
+                g.keys.left = r & 3 == 1;
+                g.keys.right = r & 3 == 2;
+                g.keys.batt = r & 0x30 == 0x30;
+                g.keys.band = r & 0xC0 == 0xC0;
+            }
+            g.ticks += game::TICKS_PER_FRAME;
+            g.play_game_frame();
+            g.sound_queue.clear();
+            g.music_queue.clear();
+            n += 1;
+            continue;
+        }
         g.keys.left = hold.contains(&"left");
         g.keys.right = hold.contains(&"right");
         g.keys.batt = hold.contains(&"batt");
@@ -754,6 +781,9 @@ fn smoke(a: Rc<Assets>, house: &str, frames: u32) {
                 eprintln!("          glider 2 mode {} dest {:?} vel ({}, {})", g2.mode, g2.dest, g2.h_vel, g2.v_vel);
             }
         }
+    }
+    if monkey.is_some() {
+        println!("{games} games");
     }
     let gl = &g.gliders[0];
     println!(
