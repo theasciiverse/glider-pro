@@ -159,6 +159,7 @@ impl Term {
                 let id = if n == game::TRIGGER_SOUND { g.trigger_sound_id.unwrap_or(-1) } else { game::sound::BASE_BUFFER_SOUND_ID + n };
                 self.sound(g, id)
             };
+            log::debug!("sound {n} on channel {ch}: {}", if s.is_some() { "playing" } else { "none" });
             self.audio.play(ch as usize, s);
         }
         for id in std::mem::take(&mut g.music_queue) {
@@ -186,6 +187,7 @@ impl Term {
             && let Some(id) = self.music.pop_front()
         {
             let s = self.sound(g, id);
+            log::debug!("music piece {id}: {}", if s.is_some() { "playing" } else { "missing" });
             self.music_playing = s.is_some();
             self.audio.play(audio::MUSIC, s);
         }
