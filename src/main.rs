@@ -51,6 +51,9 @@ usage: glider-pro [options] [HOUSE]
                   resource fork beside it (NAME.rsrc, ._NAME)
   --houses        list the built-in houses
   --mute          no sound
+  --demo          start with the demo (Demo House playing itself)
+  --silhouette    the silhouette view (solid shapes, a softened room)
+  --original      Calhoun's art in half blocks
   --frames N      run N frames of a game with no one at the keys, no
                   terminal (a smoke test), and print where it ended
   --version       print the version
@@ -487,7 +490,16 @@ fn choose_house(term: &mut Term, g: &mut Game) -> Option<String> {
     }
 }
 
-fn run(slot: &mut Option<Box<Term>>, g: &mut Game, settings: &mut Settings) {
+fn run(slot: &mut Option<Box<Term>>, g: &mut Game, settings: &mut Settings, demo_first: bool) {
+    if demo_first {
+        if let Some(t) = slot.as_mut() {
+            t.screen = Screen::Playing;
+        }
+        demo_game(slot, g, settings);
+        if g.quitting {
+            return;
+        }
+    }
     loop {
         let mut demo = false;
         // ---- the title
@@ -612,10 +624,12 @@ fn play(slot: &mut Option<Box<Term>>, g: &mut Game, settings: &mut Settings) {
             let term = slot.as_mut().expect("terminal");
             term.read_events(next);
             let cmds = term.take_cmds(g);
+            // the demo: any key ends it (as the arcade build's), but V
+            // switches the view
+            let viewing = cmds.contains(&Cmd::View);
             for c in &cmds {
                 match c {
-                    // the demo: any key ends it (as the arcade build's)
-                    Cmd::Any if g.demo_going => g.playing = false,
+                    Cmd::Any if g.demo_going && !viewing => g.playing = false,
                     Cmd::Pause => {
                         if g.paused {
                             g.end_pause();
@@ -911,6 +925,8 @@ fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut house = None;
     let mut mute = false;
+    let mut demo_first = false;
+    let mut view = None;
     let mut frames = None;
     let mut it = args.iter();
     while let Some(a) = it.next() {
@@ -930,6 +946,9 @@ fn main() {
                 return;
             }
             "--mute" => mute = true,
+            "--demo" => demo_first = true,
+            "--silhouette" => view = Some(true),
+            "--original" => view = Some(false),
             "--frames" => frames = it.next().and_then(|n| n.parse().ok()),
             s if !s.starts_with('-') => house = Some(s.to_string()),
             s => {
@@ -939,6 +958,9 @@ fn main() {
         }
     }
     let mut settings = Settings::load();
+    if let Some(v) = view {
+        settings.silhouette = v;
+    }
     let house = house.unwrap_or_else(|| settings.house.clone());
     let a = Rc::new(Assets::load());
     if let Some(n) = frames {
@@ -984,7 +1006,7 @@ fn main() {
         backdrop: None,
     };
     let mut slot = Some(Box::new(term));
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(&mut slot, &mut g, &mut settings)));
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(&mut slot, &mut g, &mut settings, demo_first)));
     let mut out = io::stdout();
     if exact {
         let _ = execute!(out, PopKeyboardEnhancementFlags);

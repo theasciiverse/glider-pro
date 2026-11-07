@@ -153,6 +153,13 @@ stay as shipped, as the C's locked houses, whose scores went to a file).
 - tmux on a private socket (`tmux -L gptest`), `send-keys`, `capture-pane -e -p -N`
   (tmux carries colours over from the row before: a parser must too).
 
+## Catalog preview (2026-11-07)
+
+`asciiverse/glider-pro.cast`, 100x30, about 55 s, recorded by
+`asciiverse/record-preview.sh`: `glider-pro --demo` (Glider PRO's own demo, Demo House
+from Calhoun's recorded keys), silhouette view, the original view from about 22 s to
+38 s. Not in the hub catalog: no repo release, no store page yet (David's call).
+
 ## Known gaps (2026-11-07)
 
 - The demo replays as Calhoun recorded it, deaths included (audit of 2026-11-07: the
@@ -170,5 +177,7 @@ stay as shipped, as the C's locked houses, whose scores went to a file).
 cargo run --release                         # title screen; house from settings
 cargo run --release -- "Teddy World"
 cargo run --release -- --frames 600 Slumberland
+cargo run --release -- --demo                 # the demo straight away
+asciiverse/record-preview.sh                  # the catalog preview cast
 cargo test --release
 ```
