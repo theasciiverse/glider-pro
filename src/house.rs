@@ -275,41 +275,20 @@ impl House {
     }
 }
 
-macro_rules! houses {
-    ($($name:literal),* $(,)?) => {
-        &[$(($name, include_bytes!(concat!("../Houses/", $name, ".binhex")) as &[u8])),*]
-    };
+include!(concat!(env!("OUT_DIR"), "/houses.rs"));
+
+/// A built-in house's forks: (data, resource).
+pub fn forks(packed: &[u8]) -> Option<(Vec<u8>, Vec<u8>)> {
+    let raw = miniz_oxide::inflate::decompress_to_vec(packed).ok()?;
+    let n = u32::from_be_bytes(raw.get(0..4)?.try_into().ok()?) as usize;
+    let data = raw.get(4..4 + n)?.to_vec();
+    let rsrc = raw.get(4 + n..)?.to_vec();
+    Some((data, rsrc))
 }
 
-/// The houses in the Glider PRO repository, as BinHex. Sampler is left
-/// out: its resource fork is damaged (and Aerofoil leaves it out too).
-pub const BUILT_IN: &[(&str, &[u8])] = houses![
-    "Demo House",
-    "Art Museum",
-    "CD Demo House",
-    "California or Bust!",
-    "Castle o' the Air",
-    "Davis Station",
-    "Empty House",
-    "Fun House",
-    "Grand Prix",
-    "ImagineHouse PRO II",
-    "In The Mirror",
-    "Land of Illusion",
-    "Leviathan",
-    "Metropolis",
-    "Nemo's Market",
-    "Rainbow's End",
-    "Slumberland",
-    "SpacePods",
-    "Teddy World",
-    "The Asylum Pro",
-    "Titanic",
-];
-
 pub fn load(name: &str) -> Option<House> {
-    if let Some((_, text)) = BUILT_IN.iter().find(|(n, _)| *n == name) {
-        let (data, rsrc) = mac::binhex(text)?;
+    if let Some((_, packed)) = BUILT_IN.iter().find(|(n, _)| *n == name) {
+        let (data, rsrc) = forks(packed)?;
         return House::parse(&data, &rsrc);
     }
     load_file(std::path::Path::new(name))

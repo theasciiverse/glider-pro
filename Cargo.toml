@@ -12,11 +12,15 @@ name = "glider-pro"
 path = "src/main.rs"
 
 [dependencies]
+miniz_oxide = "0.8"
 ratatui = "0.30"
 log = "0.4"
 env_logger = "0.11"
 rodio = { version = "0.22", default-features = false, features = ["playback"] }
 gilrs = { version = "0.11", optional = true, default-features = false, features = ["xinput"] }
+
+[build-dependencies]
+miniz_oxide = "0.8"
 
 [features]
 default = ["gamepad"]
@@ -24,3 +28,10 @@ gamepad = ["dep:gilrs"]
 
 [profile.release]
 debug = 1
+
+# the build script decodes 50 MB of BinHex and DeRez text
+[profile.release.build-override]
+opt-level = 3
+
+[profile.dev.build-override]
+opt-level = 3

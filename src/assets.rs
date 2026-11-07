@@ -8,7 +8,27 @@ use crate::mac::{self, Image, Resources, Sound};
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-const GLIDER_PRO_R: &[u8] = include_bytes!("../Glider PRO.r");
+/// `Glider PRO.r`, decoded and deflated by build.rs.
+const GLIDER_PRO_R: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/glider_pro_r.bin"));
+
+/// The resources build.rs packed: a count, then (type, id, length, bytes).
+fn unpack(packed: &[u8]) -> Resources {
+    let mut res = Resources::new();
+    let Ok(raw) = miniz_oxide::inflate::decompress_to_vec(packed) else { return res };
+    let be32 = |at: usize| raw.get(at..at + 4).map_or(0, |b| u32::from_be_bytes([b[0], b[1], b[2], b[3]]) as usize);
+    let n = be32(0);
+    let mut at = 4;
+    for _ in 0..n {
+        let Some(t) = raw.get(at..at + 4) else { break };
+        let ty = [t[0], t[1], t[2], t[3]];
+        let id = i16::from_be_bytes([raw[at + 4], raw[at + 5]]);
+        let len = be32(at + 6);
+        let Some(v) = raw.get(at + 10..at + 10 + len) else { break };
+        res.insert((ty, id), v.to_vec());
+        at += 10 + len;
+    }
+    res
+}
 
 pub struct Assets {
     pub app: Resources,
@@ -18,7 +38,7 @@ pub struct Assets {
 
 impl Assets {
     pub fn load() -> Assets {
-        Assets { app: mac::derez(GLIDER_PRO_R), cache: RefCell::new(HashMap::new()) }
+        Assets { app: unpack(GLIDER_PRO_R), cache: RefCell::new(HashMap::new()) }
     }
 
     fn decode(res: &Resources, id: i16) -> Option<std::rc::Rc<Image>> {

@@ -47,8 +47,10 @@ record it.
   pixels, Teddy World and The Asylum Pro). Sampler is left out: its resource fork is
   damaged (as Aerofoil leaves it out). The `.mov` files (QuickTime, house intros) are
   not used.
-- Size: houses 34 MB BinHex, Glider PRO.r 15 MB, built into the binary for now. A
-  build step converting them to raw forks would about halve that (to do).
+- Size: houses 34 MB BinHex, Glider PRO.r 15 MB of text. `build.rs` decodes them at
+  build time (with `src/mac.rs`) and deflates each house and the resources
+  (miniz_oxide); a house is inflated when it is loaded. Stripped binary 21.5 MB (was
+  89 MB with the text built in), 2026-11-07. The house list is in build.rs.
 
 ## Choices for the terminal
 
