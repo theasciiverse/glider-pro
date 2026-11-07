@@ -153,6 +153,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
-            || gh release create "$TAG" -R "$GITHUB_REPOSITORY" --title "Glider $TAG" \
-                 --notes "Glider $TAG for the Asciiverse catalog. Its README lists the controls."
+            || gh release create "$TAG" -R "$GITHUB_REPOSITORY" --title "Glider PRO $TAG" \
+                 --notes "Glider PRO $TAG for the Asciiverse catalog. Its README lists the controls."
           gh release upload "$TAG" dist/* -R "$GITHUB_REPOSITORY" --clobber
