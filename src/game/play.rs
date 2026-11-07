@@ -138,6 +138,8 @@ impl Game {
     /// The rest of NewGame, after `PlayGame()` returns: everything
     /// following is after a game has ended.
     pub fn play_game_finish(&mut self) {
+        // (the room's text, a calendar's month, goes with the room)
+        self.labels.clear();
         // (the end of PlayGame: BUILD_ARCADE_VERSION only)
 
         self.is_play_music_game = self.was_play_music_pref;
