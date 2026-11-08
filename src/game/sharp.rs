@@ -51,6 +51,20 @@ pub const SHARP: &[i32] = &[
     OUTLET,        // CD Demo House 201: plate and two sockets; Braille a white slab
     VCR,           // California or Bust! 11: clean body, red display light kept
     MICROWAVE,     // CD Demo House 51: dark window as the art; Braille made orange speckle
+    LIGHT_BULB,    // CD Demo House 5: bulb and base; Braille a white box
+    TABLE_LAMP,    // CD Demo House 181: cleaner shade and base
+    HIP_LAMP,      // Grand Prix 28: cleaner pole and shades
+    DECO_LAMP,     // Demo House 3: the black lamp; Braille nearly lost it
+    FLOURESCENT,   // Demo House 1: the tube; Braille lost it
+    TRACK_LIGHT,   // Art Museum 17: cleaner rail and heads
+    CEILING_VENT,  // CD Demo House 181: grille edges, as the floor vent
+    FLOOR_BLOWER,  // CD Demo House 173: cleaner
+    CEILING_BLOWER, // CD Demo House 173: cleaner
+    SEWER_GRATE,   // Demo House 20: the bars show
+    LEFT_FAN,      // CD Demo House 49: the black fan whole
+    RIGHT_FAN,     // CD Demo House 5: the black fan stand, as the art
+    GRECO_VENT,    // Demo House 15: the grille; Braille nearly lost it
+    SEWER_BLOWER,  // CD Demo House 50: cleaner
 ];
 // Judged and kept in Braille: PAPER (Art Museum 5: the matcher draws glyph
 // noise on the sheet), BANDS (Demo House 1: sharp turns the green box
