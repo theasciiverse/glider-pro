@@ -184,7 +184,9 @@ impl Game {
             score_left + 80,
             drop_it - 1 + (10 * SCORE_SPACING),
             banner::get_localized_string(8),
-            gfx::BLUE,
+            // (the C's blue, lighter: pure blue on the black sky could
+            // not be read in a terminal)
+            [102, 153, 255],
             0,
         );
     }

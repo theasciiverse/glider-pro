@@ -11,7 +11,6 @@ impl Game {
     pub fn draw_locale(&mut self) {
         // (the last room's text goes with it: a calendar's month)
         self.labels.clear();
-        self.room_edges.clear();
         self.zero_flames_and_the_like();
         self.zero_dinahs();
         self.kill_all_bands();
@@ -60,11 +59,6 @@ impl Game {
 
         self.num_lights = self.get_number_of_lights(self.local_numbers[CENTRAL_ROOM as usize]);
         self.draw_room_background(self.local_numbers[CENTRAL_ROOM as usize], CENTRAL_ROOM, room_v);
-        // (for the silhouette view: the room's bare background, before its
-        // objects, which the view softens wherever it still shows)
-        self.room_backdrop = Some(self.back_src_map.clone());
-        self.backdrop_serial += 1;
-        self.begin_sharp_art();
         self.draw_a_rooms_objects(CENTRAL_ROOM, false);
         self.draw_lighting();
 
@@ -261,5 +255,21 @@ impl Game {
             self.add_rect_to_work_rects(&r);
             self.shadow_visible = self.is_shadow_visible();
         }
+    }
+
+    /// The room on screen drawn again for another view (V): its background
+    /// and objects as RedrawRoomLighting draws them, without starting its
+    /// flames, enemies and the rest over.
+    pub fn redraw_for_view(&mut self) {
+        if !self.playing || self.this_room_number < 0 || self.this_room_number as usize >= self.house.rooms.len() {
+            return;
+        }
+        let room_v = self.house.rooms[self.this_room_number as usize].floor;
+        self.draw_room_background(self.local_numbers[CENTRAL_ROOM as usize], CENTRAL_ROOM, room_v);
+        self.draw_a_rooms_objects(CENTRAL_ROOM, true);
+        self.draw_lighting();
+        self.restore_work_map();
+        let r = self.local_rooms_dest[CENTRAL_ROOM as usize];
+        self.add_rect_to_work_rects(&r);
     }
 }

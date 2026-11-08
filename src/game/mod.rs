@@ -16,8 +16,6 @@
 #![allow(dead_code, clippy::too_many_arguments, clippy::collapsible_if, clippy::collapsible_else_if)]
 
 pub mod defs;
-pub mod flat;
-pub mod sharp;
 pub mod rect_utils;
 pub mod player;
 pub mod interactions;
@@ -772,19 +770,8 @@ pub struct Game {
 
     // --- the terminal
     /// The silhouette view: moving things drawn as solid shapes in inks by
-    /// role (`sil`), the room's background softened.
+    /// role (`sil`) over Calhoun's art.
     pub silhouette: bool,
-    /// The central room's background before its objects (`draw_locale`),
-    /// and a number that changes with each new one.
-    pub room_backdrop: Option<Map>,
-    pub backdrop_serial: u32,
-    /// The silhouette view's house objects drawn sharp in their own
-    /// colours (`sharp::KINDS`): black where the central room's objects of
-    /// those kinds drew, white elsewhere; begun with each `room_backdrop`.
-    pub sharp_art: Option<Map>,
-    /// The furniture's edges in the silhouette view (`flat`), for the
-    /// view's box-drawing overlay; with each room drawn.
-    pub room_edges: Vec<(flat::Edge, crate::mac::Rgb)>,
     /// `thisMac.screen`: a 512 x 362 screen, so the work map (screen less
     /// the scoreboard) holds one room under the scoreboard's 20 rows.
     pub screen: Rect,

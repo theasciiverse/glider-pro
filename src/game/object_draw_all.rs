@@ -63,9 +63,6 @@ impl Game {
             if self.is_this_valid(room_n, i) {
                 let mut this_object = self.house.rooms[room_n as usize].objects[i as usize];
                 let what = this_object.what;
-                // the silhouette view: some objects' art is kept sharp
-                let sharp = if neighbor == CENTRAL_ROOM && self.silhouette { super::sharp::look(what) } else { None };
-                let before = sharp.map(|_| self.begin_sharp_object());
                 match what {
                     OBJECT_IS_EMPTY => {}
 
@@ -125,27 +122,21 @@ impl Game {
                         let its_rect = self.object_rect_relative(&mut this_object, neighbor);
                         if is_lit {
                             let down = self.play_origin_v;
-                            if !self.flat_furniture(what, neighbor, &its_rect) {
-                                self.draw_table(&its_rect, down);
-                            }
+                            self.draw_table(&its_rect, down);
                         }
                     }
 
                     SHELF => {
                         let its_rect = self.object_rect_relative(&mut this_object, neighbor);
                         if is_lit {
-                            if !self.flat_furniture(what, neighbor, &its_rect) {
-                                self.draw_shelf(&its_rect);
-                            }
+                            self.draw_shelf(&its_rect);
                         }
                     }
 
                     CABINET => {
                         let its_rect = self.object_rect_relative(&mut this_object, neighbor);
                         if sect_rect(&its_rect, &test_rect, &mut who_cares) && is_lit {
-                            if !self.flat_furniture(what, neighbor, &its_rect) {
-                                self.draw_cabinet(&its_rect);
-                            }
+                            self.draw_cabinet(&its_rect);
                         }
                     }
 
@@ -166,18 +157,14 @@ impl Game {
                     COUNTER => {
                         let its_rect = self.object_rect_relative(&mut this_object, neighbor);
                         if sect_rect(&its_rect, &test_rect, &mut who_cares) && is_lit {
-                            if !self.flat_furniture(what, neighbor, &its_rect) {
-                                self.draw_counter(&its_rect);
-                            }
+                            self.draw_counter(&its_rect);
                         }
                     }
 
                     DRESSER => {
                         let its_rect = self.object_rect_relative(&mut this_object, neighbor);
                         if is_lit {
-                            if !self.flat_furniture(what, neighbor, &its_rect) {
-                                self.draw_dresser(&its_rect);
-                            }
+                            self.draw_dresser(&its_rect);
                         }
                     }
 
@@ -185,9 +172,7 @@ impl Game {
                         let its_rect = self.object_rect_relative(&mut this_object, neighbor);
                         if is_lit {
                             let down = self.play_origin_v;
-                            if !self.flat_furniture(what, neighbor, &its_rect) {
-                                self.draw_deck_table(&its_rect, down);
-                            }
+                            self.draw_deck_table(&its_rect, down);
                         }
                     }
 
@@ -502,9 +487,7 @@ impl Game {
                     MIRROR => {
                         let mut its_rect = self.object_rect_relative(&mut this_object, neighbor);
                         if sect_rect(&its_rect, &test_rect, &mut who_cares) && is_lit {
-                            if !self.flat_furniture(what, neighbor, &its_rect) {
-                                self.draw_mirror(&its_rect);
-                            }
+                            self.draw_mirror(&its_rect);
                         }
                         if (neighbor == CENTRAL_ROOM) && !redraw {
                             inset_rect(&mut its_rect, 4, 4);
@@ -548,9 +531,6 @@ impl Game {
                     }
 
                     _ => {}
-                }
-                if let (Some(before), Some(look)) = (before, sharp) {
-                    self.tag_sharp_art(&before, look);
                 }
             }
 

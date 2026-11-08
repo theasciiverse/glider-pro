@@ -100,8 +100,8 @@ files directly. Branch `main`; `asciiverse` stays on GitHub, unused.
   for each call that may wait (`lend`) and takes it back.
 - `PlayGame`'s loop is `play_game_frame` (one frame), called every 2 ticks by
   `main.rs`; `new_game` sets up, `play_game_finish` is what follows the loop.
-- `view.rs`: `games/glider`'s view, unchanged but for a local `Canvas` (one room's
-  pixels and silhouettes) and `soften_backdrop`.
+- `view.rs`: half blocks, and `games/glider`'s shape matcher for the cells with a
+  silhouette in them (a local `Canvas`: one room's pixels and silhouettes).
 - `input.rs`, `audio.rs` (three effect channels and music, as Glider PRO's Sound
   Manager channels; reports channels that ended so `sound_finished` /
   `music_piece_finished` run as the C callbacks), `save.rs`.
@@ -117,43 +117,34 @@ scoreboard's figures (room, gliders, score) are shown as the status line
 ## Views (V switches, saved)
 
 - **Original**: Calhoun's art in half blocks.
-- **Silhouette** (default, as Glider): sprites drawn into the work map go through
-  `copy_mask_ink` with an ink from `Game::sil` (by source map: glider white, foil, toast,
-  balloons, darts, ...), recorded in the maps' `fore` layer, which copies along work ->
-  main; the view draws those cells with Glider's shape matcher. The room's background
-  is softened (Glider's blur and dim) wherever it still shows: `draw_locale` keeps the
-  bare background (`room_backdrop`) before the objects are drawn, and the view swaps
-  in its softened copy pixel by pixel. Objects keep their art; flames are inked too.
-  Furniture as in Glider (David, 2026-11-07, "do the same as for what we did with
-  glider"): what Calhoun drew with QuickDraw (table, deck table, shelf, cabinet,
-  counter, dresser, mirror) is flat in wood and glass tones (`game/flat.rs`), and its
-  edges (`room_edges`, room coordinates) are box-drawn over the picture by
-  `view::draw_edges` (Glider's, skipping cells with a silhouette in them). V during
-  play redraws the room for the other view (`redraw_for_view`, RedrawRoomLighting's
-  way, so flames and enemies go on).
-- **House objects** (David, 2026-11-07: some "just look like blobs"; give them Glider's
-  level of detail): the Braille cells keep each dot's brightest pixel, which loses an
-  object's dark detail. `game/sharp.rs` lists kinds by look, chosen object by object from
-  renders, as Glider's `draw::sharp_art`: **Sharp** (through the shape matcher in their
-  own colours, without the dark outline around them) and **Picture** (custom pictures
-  and other big busy art in half blocks, each half the average under it, as the original
-  view: the matcher made glyph noise of the quilt, Braille lost its dark diamonds);
-  the rest stay in Braille. While a listed kind is drawn into the back map
-  (`draw_a_rooms_objects`, central room only) the map's `cover` marks every pixel written,
-  even in the colour already there (Demo House paints its vase into the wall); a
-  sentinel fill was tried first and leaked onto the screen through dynamic objects
-  (stars) that save the background under them while they are set up. Covered pixels
-  go to `Game::sharp_art`
-  (a map's `fore`: colour, and the picture flag), begun with each `room_backdrop`.
-  The view (`Canvas::sharpen_art`) takes a tagged pixel only while the picture still
-  shows that colour, so a collected or erased object drops out. Objects redrawn later
-  on their own (a switch flipped) keep the tags from the room's drawing.
-  Decided overnight 2026-11-08 for every visible kind, each from crops of a room it is
-  in (braille, the look, the original view side by side; the reason is a comment beside
-  each kind in `sharp.rs`). Picture: custom pictures, Ozma, calendar, stairs, mailboxes.
-  Kept in Braille: paper, rubber bands, stereo. Sharp: everything else visible. Not
-  affected: invisible kinds, things already inked (balloons, darts, copters, ball, drip,
-  fish, flames, toast) and the flat furniture. Test: `house_objects_keep_their_art`.
+- **Silhouette** (default): Calhoun's art in half blocks, exactly as the original view,
+  with everything that moves or hurts drawn over it as a solid shape in an ink by role
+  (`copy_mask_ink` with an ink from `Game::sil`: glider white, foil, toast, balloons,
+  darts, ...), recorded in the maps' `fore` layer, which copies along work -> main; the
+  cells with a silhouette in them get the shape matcher's character
+  (`view::draw_silhouette`, Glider's `sharp_cell`). The art's dark parts inside a
+  shape are a shade of the ink, so the glider's mid-gray lower wing (153) reads as
+  folded paper: the line is 170 (`gfx::DARK`), not Glider's 100, as Glider PRO's art
+  is lighter. Drawing over a pixel clears its `fore` (the shreds of a shredded glider
+  stayed sharp over the high scores and the title). V during play redraws the room
+  (`redraw_for_view`, RedrawRoomLighting's way, so flames and enemies go on).
+- **Why not Glider's view** (David, 2026-11-08: "we are taking the wrong approach",
+  then "go with halfblocks"): Glider's silhouette view (background blurred and
+  dimmed, furniture flat with box-drawn edges, Braille cells, house objects through
+  the matcher) was made for Glider 4's simple art. On Glider PRO's detailed colour
+  pictures each layer made things worse: the blur turned big pictures (Teddy World's
+  bear) to mud, Braille's brightest dot turned objects to blobs and the banner's text
+  to noise, the flat furniture lost Calhoun's drawers and panels. All of it was
+  tried (2026-11-07 and the night to 11-08: per-object Sharp and Picture lists) and
+  removed. Compared on a bench of ten rooms from ten houses, by eye: last night's
+  view, half blocks, half blocks dimmed, quadrants (best two-colour split, twice the
+  detail across), quadrants on 64 fixed colours, on the room's own 16 (k-means), and
+  the original. Quadrants were sharpest, but half blocks were chosen for support:
+  U+2580 is in code page 437 and every terminal font, the quadrants (Unicode 3.2)
+  are not (Liberation Mono and Nimbus Mono have half blocks and no quadrants). A
+  smaller palette made things worse both ways: 64 fixed colours garish, the room's
+  16 shifted small things' colours (clocks brown, shields red-brown) and speckled
+  the quilt and marble.
 
 ## Controls
 
@@ -180,10 +171,9 @@ stay as shipped, as the C's locked houses, whose scores went to a file).
   `GLIDER_PRO_CELLS=file` (+ `GLIDER_PRO_VIEW=original`): the terminal's cells
   (120 x 39) as ANSI text; `GLIDER_PRO_MONKEY=seed`: random keys, game after game;
   `GLIDER_PRO_TWO=1`: a two-player game (`HOLD` takes `left2`, `right2`);
-  `GLIDER_PRO_ROOM=n`: start in room n; `GLIDER_PRO_SHARP` / `GLIDER_PRO_PICTURE`
-  (`all`, `none` or kind numbers): override `game/sharp.rs`'s lists, for comparing
-  renders. `--objects` lists every object kind in the built-in houses with places to
-  see it; `--objects "HOUSE:ROOM"` one room's objects.
+  `GLIDER_PRO_ROOM=n`: start in room n (with `GLIDER_PRO_CELLS`, one room's render). `--objects` lists every
+  object kind in the built-in houses with places to see it; `--objects "HOUSE:ROOM"`
+  one room's objects.
   Monkey run of 2026-11-07: 21 houses x 4 seeds x 30000 frames, no panic.
   `RUST_LOG=glider_pro=debug` logs every hot spot hit.
 - `cargo test --release`: data decodes, every built-in house plays 1500 frames four

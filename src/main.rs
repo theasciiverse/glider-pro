@@ -52,7 +52,7 @@ usage: glider-pro [options] [HOUSE]
   --houses        list the built-in houses
   --mute          no sound
   --demo          start with the demo (Demo House playing itself)
-  --silhouette    the silhouette view (solid shapes, a softened room)
+  --silhouette    the silhouette view (moving things as solid shapes)
   --original      Calhoun's art in half blocks
   --frames N      run N frames of a game with no one at the keys, no
                   terminal (a smoke test), and print where it ended
@@ -139,9 +139,6 @@ struct Term {
     /// The sound and music switches (Glider PRO's Sound settings).
     sound_on: bool,
     music_on: bool,
-    /// The room's bare background and its softened copy, for the
-    /// silhouette view, by `Game::backdrop_serial`.
-    backdrop: Option<(u32, view::Canvas, view::Canvas)>,
 }
 
 impl Term {
@@ -253,33 +250,17 @@ impl Term {
         self.placed = view::place(pic_area, self.aspect);
         // the central room, out of the main window
         let room_dest = g.local_rooms_dest[0];
-        let mut room = view::Canvas::from_map(&g.main_window_map, room_dest);
+        let room = view::Canvas::from_map(&g.main_window_map, room_dest);
         let silhouette = g.silhouette && self.screen == Screen::Playing;
-        if silhouette && let Some(bare) = &g.room_backdrop {
-            if self.backdrop.as_ref().is_none_or(|b| b.0 != g.backdrop_serial) {
-                let plain = view::Canvas::from_map(bare, room_dest);
-                let mut soft = view::Canvas { px: plain.px.clone(), fore: Vec::new(), pic: Vec::new() };
-                soft.soften(4, 0.5);
-                self.backdrop = Some((g.backdrop_serial, plain, soft));
-            }
-            if let Some((_, plain, soft)) = &self.backdrop {
-                if let Some(tag) = &g.sharp_art {
-                    room.sharpen_art(&view::Canvas::from_map(tag, room_dest));
-                }
-                room.soften_backdrop(plain, soft);
-            }
-        }
         let placed = self.placed;
         let screen = self.screen;
         let status = status_line(g, screen);
         let labels: Vec<game::Label> = g.labels.clone();
         let overlay = self.overlay.clone();
-        let edges = g.room_edges.clone();
         let _ = self.terminal.draw(|f| {
             let buf: &mut Buffer = f.buffer_mut();
             if silhouette {
-                view::draw_braille(buf, &room, &placed);
-                view::draw_edges(buf, &placed, &edges, &room);
+                view::draw_silhouette(buf, &room, &placed);
             } else {
                 view::draw(buf, &room, &placed);
             }
@@ -734,21 +715,9 @@ impl ScreenIo for NoIo {
     }
 }
 
-/// The central room as the view gets it: in the silhouette view, with the
-/// sharp objects' art in `fore` and `pic`, and the bare background softened.
-fn room_canvas(g: &Game, sil: bool) -> view::Canvas {
-    let dest = g.local_rooms_dest[0];
-    let mut room = view::Canvas::from_map(&g.main_window_map, dest);
-    if sil && let Some(bare) = &g.room_backdrop {
-        let plain = view::Canvas::from_map(bare, dest);
-        let mut soft = view::Canvas { px: plain.px.clone(), fore: Vec::new(), pic: Vec::new() };
-        soft.soften(4, 0.5);
-        if let Some(tag) = &g.sharp_art {
-            room.sharpen_art(&view::Canvas::from_map(tag, dest));
-        }
-        room.soften_backdrop(&plain, &soft);
-    }
-    room
+/// The central room as the view gets it, out of the main window.
+fn room_canvas(g: &Game) -> view::Canvas {
+    view::Canvas::from_map(&g.main_window_map, g.local_rooms_dest[0])
 }
 
 /// `--frames N`: a game with nobody at the keys, without a terminal.
@@ -851,13 +820,12 @@ fn smoke(a: Rc<Assets>, house: &str, frames: u32) {
     // (silhouette or original)
     if let Ok(path) = std::env::var("GLIDER_PRO_CELLS") {
         let sil = std::env::var("GLIDER_PRO_VIEW").map_or(true, |v| v != "original");
-        let room = room_canvas(&g, sil);
+        let room = room_canvas(&g);
         let area = Area::new(0, 0, 120, 39);
         let placed = view::place(area, 2.0);
         let mut buf = Buffer::empty(area);
         if sil {
-            view::draw_braille(&mut buf, &room, &placed);
-            view::draw_edges(&mut buf, &placed, &g.room_edges, &room);
+            view::draw_silhouette(&mut buf, &room, &placed);
         } else {
             view::draw(&mut buf, &room, &placed);
         }
@@ -915,28 +883,29 @@ mod tests {
         assert_eq!((n, g.this_room_number), (3432, 15));
     }
 
-    /// Demo House's first room in the silhouette view (`game::sharp`): the
-    /// vase is drawn sharp in its own blue (the wall picture has it painted
-    /// in, so it was softened away before), and the quilt, a custom
-    /// picture, goes to half blocks, not to the matcher.
+    /// The silhouette view keeps Calhoun's art (David, 2026-11-08: half
+    /// blocks, no blur, no flat furniture): in Demo House's first room every
+    /// pixel is as in the original view but for the silhouettes, which are
+    /// all in `fore` (the glider among them).
     #[test]
-    fn house_objects_keep_their_art() {
+    fn the_silhouette_view_keeps_the_art() {
         let a = Rc::new(Assets::load());
-        let mut g = new_game_state(a, "Demo House").unwrap();
-        g.screen_io = Some(Box::new(NoIo));
-        set_silhouette(&mut g, true);
-        g.new_game(game::NEW_GAME_MODE);
-        g.force_this_room(0);
-        g.determine_room_openings();
-        g.draw_locale();
-        g.ticks += game::TICKS_PER_FRAME;
-        g.play_game_frame();
-        let room = room_canvas(&g, true);
-        let blue = room.fore.iter().filter(|f| matches!(f, Some((c, false)) if c[2] > 150 && c[0] < 80)).count();
-        assert!(blue > 150, "vase pixels sharp: {blue}");
-        let pic = room.pic.iter().filter(|&&p| p).count();
-        assert!(pic > 20_000, "quilt pixels as picture: {pic}");
-        assert!(room.pic.iter().zip(&room.fore).all(|(&p, f)| !p || !matches!(f, Some((_, false)))));
+        let room = |sil: bool| {
+            let mut g = new_game_state(a.clone(), "Demo House").unwrap();
+            g.screen_io = Some(Box::new(NoIo));
+            set_silhouette(&mut g, sil);
+            g.new_game(game::NEW_GAME_MODE);
+            for _ in 0..60 {
+                g.ticks += game::TICKS_PER_FRAME;
+                g.play_game_frame();
+            }
+            room_canvas(&g)
+        };
+        let (sil, orig) = (room(true), room(false));
+        let inked = sil.fore.iter().filter(|f| f.is_some()).count();
+        assert!(inked > 200, "glider and the rest in fore: {inked}");
+        let other = (0..sil.px.len()).filter(|&i| sil.fore[i].is_none() && sil.px[i] != orig.px[i]).count();
+        assert_eq!(other, 0, "pixels changed outside the silhouettes");
     }
 
     /// Every room of every built-in house drawn (every object kind's
@@ -1130,7 +1099,6 @@ fn main() {
         overlay: Vec::new(),
         sound_on: settings.sound,
         music_on: settings.music,
-        backdrop: None,
     };
     let mut slot = Some(Box::new(term));
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(&mut slot, &mut g, &mut settings, demo_first)));

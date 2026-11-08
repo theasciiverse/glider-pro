@@ -110,11 +110,10 @@ pub struct Map {
     /// shape are a darker shade of the ink. Copies between maps that both
     /// keep it carry it along; a copy from one that doesn't clears it.
     pub fore: Vec<Option<(Rgb, bool)>>,
-    /// When not empty, every pixel written since it was begun is marked
-    /// (`game::sharp`: what one object covers, even in the colour that
-    /// was there).
-    pub cover: Vec<bool>,
 }
+
+/// Art darker than this in every channel is a silhouette's dark part.
+const DARK: u8 = 170;
 
 /// A silhouette's ink where the art is dark.
 pub fn shade(c: Rgb) -> Rgb {
@@ -126,7 +125,7 @@ impl Map {
     /// white is QuickDraw's back colour).
     pub fn new(r: Rect) -> Map {
         let n = (r.width().max(0) * r.height().max(0)) as usize;
-        Map { bounds: r, px: vec![WHITE; n], clip: r, pen: Pen::default(), ink: None, fore: Vec::new(), cover: Vec::new() }
+        Map { bounds: r, px: vec![WHITE; n], clip: r, pen: Pen::default(), ink: None, fore: Vec::new() }
     }
 
     /// Keep a silhouette layer (all clear) from now on.
@@ -201,8 +200,10 @@ impl Map {
             && let Some(i) = self.index(x, y)
         {
             self.px[i] = c;
-            if !self.cover.is_empty() {
-                self.cover[i] = true;
+            // whatever is drawn over a silhouette ends it (the shreds of a
+            // shredded glider stayed sharp over the high scores and title)
+            if !self.fore.is_empty() {
+                self.fore[i] = None;
             }
         }
     }
@@ -559,9 +560,11 @@ impl Map {
                         None => self.set(x, y, src.px[i]),
                         Some(c) => {
                             // the art's dark parts inside the shape a
-                            // shade of the ink (a glider's lower wing)
+                            // shade of the ink (a glider's lower wing; Glider
+                            // PRO's is mid-gray, 153, where Glider 4's art is
+                            // darker, so the line is higher than Glider's 100)
                             let inside = [(-1, 0), (1, 0), (0, -1), (0, 1)].iter().all(|(dx, dy)| mask.get(mx + dx, my + dy)[0] < 128);
-                            let dark = src.px[i].iter().all(|&v| v < 100);
+                            let dark = src.px[i].iter().all(|&v| v < DARK);
                             let c = if inside && dark { shade(c) } else { c };
                             self.set(x, y, c);
                             self.set_fore(x, y, Some((c, true)));

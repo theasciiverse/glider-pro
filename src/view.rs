@@ -14,9 +14,6 @@ pub const H: i32 = 322;
 pub struct Canvas {
     pub px: Vec<Rgb>,
     pub fore: Vec<Option<(Rgb, bool)>>,
-    /// The silhouette view: pixels of house pictures drawn in half blocks
-    /// (`game::sharp::Look::Picture`); empty when none.
-    pub pic: Vec<bool>,
 }
 
 impl Canvas {
@@ -33,75 +30,9 @@ impl Canvas {
                 }
             }
         }
-        Canvas { px, fore, pic: Vec::new() }
+        Canvas { px, fore }
     }
 
-    /// Blur with a (2r+1)-square box and scale the brightness by `k`: what
-    /// the silhouette view does to a room's background, so the wallpaper's
-    /// dithering and fine lines become calm shades.
-    pub fn soften(&mut self, r: i32, k: f32) {
-        let (w, h) = (W as usize, H as usize);
-        // summed-area table, one per channel
-        let mut sat = vec![[0u32; 3]; (w + 1) * (h + 1)];
-        for y in 0..h {
-            let mut row = [0u32; 3];
-            for x in 0..w {
-                let p = self.px[y * w + x];
-                for c in 0..3 {
-                    row[c] += p[c] as u32;
-                    sat[(y + 1) * (w + 1) + x + 1][c] = sat[y * (w + 1) + x + 1][c] + row[c];
-                }
-            }
-        }
-        for y in 0..H {
-            for x in 0..W {
-                let (x0, x1) = ((x - r).max(0) as usize, (x + r + 1).min(W) as usize);
-                let (y0, y1) = ((y - r).max(0) as usize, (y + r + 1).min(H) as usize);
-                let n = ((x1 - x0) * (y1 - y0)) as f32;
-                let mut out = [0u8; 3];
-                for c in 0..3 {
-                    let s = sat[y1 * (w + 1) + x1][c] + sat[y0 * (w + 1) + x0][c] - sat[y0 * (w + 1) + x1][c] - sat[y1 * (w + 1) + x0][c];
-                    out[c] = (s as f32 / n * k).min(255.0) as u8;
-                }
-                self.px[(y * W + x) as usize] = out;
-            }
-        }
-    }
-
-    /// The silhouette view's house objects of sharp kinds (`game::sharp`):
-    /// where `tag` has the colour the picture still shows (the object was
-    /// not erased or covered since), the pixel goes to `fore` as a thing of
-    /// the house, for the shape matcher, and is not softened.
-    pub fn sharpen_art(&mut self, tag: &Canvas) {
-        if self.fore.is_empty() || tag.fore.is_empty() {
-            return;
-        }
-        for i in 0..self.px.len() {
-            match tag.fore[i] {
-                Some((c, picture)) if self.fore[i].is_none() && c == self.px[i] => {
-                    if picture {
-                        if self.pic.is_empty() {
-                            self.pic = vec![false; self.px.len()];
-                        }
-                        self.pic[i] = true;
-                    } else {
-                        self.fore[i] = Some((c, false));
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-
-    /// The silhouette view's picture: wherever the room's bare background
-    /// still shows (pixels as in `bare`), the softened background instead.
-    pub fn soften_backdrop(&mut self, bare: &Canvas, soft: &Canvas) {
-        for i in 0..self.px.len() {
-            if self.px[i] == bare.px[i] && self.fore.get(i).is_none_or(|f| f.is_none()) && !self.pic.get(i).is_some_and(|&p| p) {
-                self.px[i] = soft.px[i];
-            }
-        }
-    }
 }
 use crate::mac::Rgb;
 use ratatui::buffer::Buffer;
@@ -206,16 +137,8 @@ pub fn draw(buf: &mut Buffer, c: &Canvas, p: &Placed) {
 }
 
 // ---------------------------------------------------------------------
-// the silhouette view: Braille shapes and box-drawing edges
-
-/// Where the picture goes for Braille: the same cells, 2x4 dots each.
-pub fn dots(p: &Placed) -> (u16, u16) {
-    (p.cells.width * 2, p.cells.height * 4)
-}
-
-fn lum(c: Rgb) -> u32 {
-    c[0] as u32 * 2 + c[1] as u32 * 5 + c[2] as u32
-}
+// the silhouette view: the same half blocks, and the cells with something
+// moving in them drawn sharper
 
 fn dist(a: Rgb, b: Rgb) -> u32 {
     let d = |i: usize| (a[i] as i32 - b[i] as i32).pow(2) as u32;
@@ -225,112 +148,23 @@ fn dist(a: Rgb, b: Rgb) -> u32 {
 /// Two colours this close are one colour as far as a cell can show.
 const SAME: u32 = 3 * 36 * 36;
 
-/// One cell's 2x4 patch (`p[x][y]`) in at most two colours, as AQuest's
-/// Mixed view does it: the background is the colour covering most of the
-/// cell, the dots the colour that stands out most from it, every other
-/// sample joins the nearer of the two. A cell split top and bottom, or all
-/// one colour, is a half block or a space instead, which shows solid areas
-/// more solidly.
-fn braille_cell(p: &[[Rgb; 4]; 2]) -> (char, Rgb, Rgb) {
-    const BIT: [[u32; 4]; 2] = [[0x01, 0x02, 0x04, 0x40], [0x08, 0x10, 0x20, 0x80]];
-    const TOP: u32 = 0x1B;
-    let at = |i: usize| p[i / 4][i % 4];
-    let mut groups: Vec<(Rgb, Rgb, u32)> = Vec::new();
-    for i in 0..8 {
-        let c = at(i);
-        match groups.iter_mut().find(|g| dist(g.0, c) < SAME) {
-            Some(g) => {
-                g.2 += 1;
-                if lum(c) > lum(g.1) {
-                    g.1 = c;
-                }
-            }
-            None => groups.push((c, c, 1)),
-        }
+/// The silhouette view: Calhoun's art in half blocks as `draw`, and every
+/// cell with a silhouette in it (`Canvas::fore`) through the shape matcher.
+pub fn draw_silhouette(buf: &mut Buffer, c: &Canvas, p: &Placed) {
+    draw(buf, c, p);
+    if c.fore.is_empty() {
+        return;
     }
-    let bg = *groups.iter().max_by_key(|g| (g.2, std::cmp::Reverse(lum(g.1)))).unwrap();
-    let Some(fg) = groups.iter().filter(|g| g.0 != bg.0).max_by_key(|g| g.2 as u64 * dist(g.1, bg.1) as u64).copied() else {
-        return (' ', bg.1, bg.1);
-    };
-    let mut bits = 0;
-    for i in 0..8 {
-        let c = at(i);
-        if dist(c, fg.0) < dist(c, bg.0) {
-            bits |= BIT[i / 4][i % 4];
-        }
-    }
-    match bits {
-        0 => (' ', bg.1, bg.1),
-        0xFF => (' ', fg.1, fg.1),
-        TOP => ('▀', fg.1, bg.1),
-        b if b == 0xFF & !TOP => ('▀', bg.1, fg.1),
-        b => (char::from_u32(0x2800 + b).unwrap_or(' '), fg.1, bg.1),
-    }
-}
-
-/// A cell mostly covered by a house picture (`Canvas::pic`): a half block,
-/// each half the average of the pixels under it, as the original view.
-fn picture_cell(c: &Canvas, x0: i32, x1: i32, y0: i32, y1: i32) -> Option<(char, Rgb, Rgb)> {
-    if c.pic.is_empty() {
-        return None;
-    }
-    let n = (y0..y1).flat_map(|y| (x0..x1).map(move |x| (y * W + x) as usize)).filter(|&i| c.pic[i]).count();
-    if n * 2 <= ((x1 - x0) * (y1 - y0)) as usize {
-        return None;
-    }
-    let avg = |ya: i32, yb: i32| -> Rgb {
-        let mut sum = [0u32; 3];
-        for y in ya..yb {
-            for x in x0..x1 {
-                let px = c.px[(y * W + x) as usize];
-                for k in 0..3 {
-                    sum[k] += px[k] as u32;
-                }
-            }
-        }
-        let n = ((x1 - x0) * (yb - ya)).max(1) as u32;
-        [(sum[0] / n) as u8, (sum[1] / n) as u8, (sum[2] / n) as u8]
-    };
-    let mid = (y0 + y1) / 2;
-    let (top, bot) = (avg(y0, mid), avg(mid, y1));
-    Some(if top == bot { (' ', top, top) } else { ('▀', top, bot) })
-}
-
-/// The picture in Braille cells. Each dot is the brightest Mac pixel under
-/// it, so thin bright things (a glider's wing, a spark) never vanish.
-pub fn draw_braille(buf: &mut Buffer, c: &Canvas, p: &Placed) {
-    let (tw, th) = dots(p);
-    let xs = spans(tw, W);
-    let ys = spans(th, H);
-    let at = |tx: usize, ty: usize| -> Rgb {
-        let (x0, x1) = xs[tx];
-        let (y0, y1) = ys[ty];
-        let mut best = c.px[(y0 * W + x0) as usize];
-        for y in y0..y1 {
-            for x in x0..x1 {
-                let px = c.px[(y * W + x) as usize];
-                if lum(px) > lum(best) {
-                    best = px;
-                }
-            }
-        }
-        best
-    };
     let r = p.cells;
+    let xs = spans(r.width, W);
+    let ys = spans(r.height * 2, H);
     for cy in 0..r.height {
         for cx in 0..r.width {
-            let mut patch = [[[0u8; 3]; 4]; 2];
-            for (x, col) in patch.iter_mut().enumerate() {
-                for (y, px) in col.iter_mut().enumerate() {
-                    *px = at(cx as usize * 2 + x, cy as usize * 4 + y);
-                }
+            let (x0, x1) = xs[cx as usize];
+            let (y0, y1) = (ys[cy as usize * 2].0, ys[cy as usize * 2 + 1].1);
+            if let Some((ch, fg, bg)) = sharp_cell(c, x0, x1, y0, y1) {
+                buf[(r.x + cx, r.y + cy)].set_char(ch).set_fg(rgb(fg)).set_bg(rgb(bg));
             }
-            let (x0, x1) = (xs[cx as usize * 2].0, xs[cx as usize * 2 + 1].1);
-            let (y0, y1) = (ys[cy as usize * 4].0, ys[cy as usize * 4 + 3].1);
-            let (ch, fg, bg) = sharp_cell(c, x0, x1, y0, y1)
-                .or_else(|| picture_cell(c, x0, x1, y0, y1))
-                .unwrap_or_else(|| braille_cell(&patch));
-            buf[(r.x + cx, r.y + cy)].set_char(ch).set_fg(rgb(fg)).set_bg(rgb(bg));
         }
     }
 }
@@ -547,96 +381,4 @@ fn sharp_cell(c: &Canvas, x0: i32, x1: i32, y0: i32, y1: i32) -> Option<(char, R
     }
     let (_, ch, f, b) = best;
     Some(if ch == ' ' { (' ', cols[b], cols[b]) } else { (ch, cols[f], cols[b]) })
-}
-
-/// The house's straight edges in box-drawing characters over the picture,
-/// skipping the cells under anything that moves, so the glider passes in
-/// front of a table, not behind its outline. Bars and posts are heavy;
-/// where one ends in the middle of a cell it ends in a half line.
-pub fn draw_edges(buf: &mut Buffer, p: &Placed, edges: &[(crate::game::flat::Edge, Rgb)], c: &Canvas) {
-    use crate::game::flat::Edge;
-    let r = p.cells;
-    let (cols, rows) = (r.width as f32, r.height as f32);
-    let fx = |x: i32| x as f32 * cols / W as f32;
-    let fy = |y: i32| y as f32 * rows / H as f32;
-    // a cell with a silhouette in it (the glider, anything that moves)
-    let blocked_cell = |cx: i32, cy: i32| -> bool {
-        if c.fore.is_empty() {
-            return false;
-        }
-        let (x0, x1) = (cx * W / cols as i32, ((cx + 1) * W / cols as i32).min(W));
-        let (y0, y1) = (cy * H / rows as i32, ((cy + 1) * H / rows as i32).min(H));
-        (y0..y1).any(|y| (x0..x1).any(|x| c.fore[(y * W + x) as usize].is_some()))
-    };
-    let put = |buf: &mut Buffer, cx: i32, cy: i32, ch: char, col: Rgb| {
-        if cx < 0 || cy < 0 || cx >= r.width as i32 || cy >= r.height as i32 {
-            return;
-        }
-        if blocked_cell(cx, cy) {
-            return;
-        }
-        let cell = &mut buf[(r.x + cx as u16, r.y + cy as u16)];
-        // a bar landing on a post's top makes a tee
-        let ch = match (cell.symbol(), ch) {
-            ("┃" | "╻", '━') => '┳',
-            _ => ch,
-        };
-        // keep the cell's background, the edge in front of it
-        let bg = cell.bg;
-        let bg = if bg == ratatui::style::Color::Reset { rgb([0; 3]) } else { bg };
-        cell.set_char(ch).set_fg(rgb(col)).set_bg(bg);
-    };
-    for &(e, col) in edges {
-        match e {
-            Edge::Post(b) => {
-                let cx = fx((b.left + b.right) / 2).floor() as i32;
-                let (y0, y1) = (fy(b.top), fy(b.bottom));
-                let (top, bot) = (y0.floor() as i32, (y1.ceil() as i32 - 1).max(y0.floor() as i32));
-                for cy in top..=bot {
-                    let ch = if cy == top && y0.fract() >= 0.5 {
-                        '╻'
-                    } else if cy == bot && y1 - bot as f32 <= 0.5 {
-                        '╹'
-                    } else {
-                        '┃'
-                    };
-                    put(buf, cx, cy, ch, col);
-                }
-            }
-            Edge::Bar(b) => {
-                let cy = fy((b.top + b.bottom) / 2).floor() as i32;
-                let (x0, x1) = (fx(b.left), fx(b.right));
-                let (first, last) = (x0.floor() as i32, (x1.ceil() as i32 - 1).max(x0.floor() as i32));
-                for cx in first..=last {
-                    let ch = if cx == first && x0.fract() >= 0.5 {
-                        '╺'
-                    } else if cx == last && x1 - last as f32 <= 0.5 {
-                        '╸'
-                    } else {
-                        '━'
-                    };
-                    put(buf, cx, cy, ch, col);
-                }
-            }
-            Edge::Outline(b) => {
-                let (left, right) = (fx(b.left).floor() as i32, (fx(b.right).ceil() as i32 - 1));
-                let (top, bot) = (fy(b.top).floor() as i32, (fy(b.bottom).ceil() as i32 - 1));
-                if right - left < 2 || bot - top < 1 {
-                    continue;
-                }
-                for cx in left + 1..right {
-                    put(buf, cx, top, '─', col);
-                    put(buf, cx, bot, '─', col);
-                }
-                for cy in top + 1..bot {
-                    put(buf, left, cy, '│', col);
-                    put(buf, right, cy, '│', col);
-                }
-                put(buf, left, top, '┌', col);
-                put(buf, right, top, '┐', col);
-                put(buf, left, bot, '└', col);
-                put(buf, right, bot, '┘', col);
-            }
-        }
-    }
 }
