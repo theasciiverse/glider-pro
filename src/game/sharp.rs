@@ -37,10 +37,25 @@ pub const SHARP: &[i32] = &[
     FOIL,          // Art Museum 19: same colours, cleaner
     STAR,          // Demo House 23: cleaner edges, same shape
     HELIUM,        // Art Museum 33: green bottle with its label
+    LIGHT_SWITCH,  // CD Demo House 5: the plate shows its toggle
+    MACHINE_SWITCH, // Demo House 2: clean, red lever
+    THERMOSTAT,    // Art Museum 6: clean body and red mark (as Glider)
+    POWER_SWITCH,  // CD Demo House 20: clean in a dark room (as Glider)
+    KNIFE_SWITCH,  // Demo House 4: the box with its blades
+    SHREDDER,      // California or Bust! 11: a machine with slot and light; Braille made stripes
+    TOASTER,       // CD Demo House 5: clean chrome with its dial
+    MAC_PLUS,      // Demo House 2: beige case, screen and slot (as Glider)
+    GUITAR,        // California or Bust! 9: clean body and neck (as Glider)
+    TV,            // Demo House 4: test bars and a clean cabinet
+    COFFEE,        // CD Demo House 3: the machine and its pot
+    OUTLET,        // CD Demo House 201: plate and two sockets; Braille a white slab
+    VCR,           // California or Bust! 11: clean body, red display light kept
+    MICROWAVE,     // CD Demo House 51: dark window as the art; Braille made orange speckle
 ];
 // Judged and kept in Braille: PAPER (Art Museum 5: the matcher draws glyph
 // noise on the sheet), BANDS (Demo House 1: sharp turns the green box
-// black; Braille keeps it, as in Glider).
+// black; Braille keeps it, as in Glider), STEREO (California or Bust! 11:
+// sharp makes one black block of the speakers; Braille keeps their cones).
 pub const PICTURE: &[i32] = &[
     CUSTOM_PICT, // Demo House 0: the quilt as in the original view; the matcher made glyph noise of it, Braille lost its dark diamonds
 ];
