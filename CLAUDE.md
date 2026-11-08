@@ -139,9 +139,11 @@ scoreboard's figures (room, gliders, score) are shown as the status line
   and other big busy art in half blocks, each half the average under it, as the original
   view: the matcher made glyph noise of the quilt, Braille lost its dark diamonds);
   the rest stay in Braille. While a listed kind is drawn into the back map
-  (`draw_a_rooms_objects`, central room only) the map is filled with a sentinel colour,
-  so every pixel it covers shows even where the room's picture has the same colour
-  (Demo House paints its vase into the wall); those pixels go to `Game::sharp_art`
+  (`draw_a_rooms_objects`, central room only) the map's `cover` marks every pixel written,
+  even in the colour already there (Demo House paints its vase into the wall); a
+  sentinel fill was tried first and leaked onto the screen through dynamic objects
+  (stars) that save the background under them while they are set up. Covered pixels
+  go to `Game::sharp_art`
   (a map's `fore`: colour, and the picture flag), begun with each `room_backdrop`.
   The view (`Canvas::sharpen_art`) takes a tagged pixel only while the picture still
   shows that colour, so a collected or erased object drops out. Objects redrawn later

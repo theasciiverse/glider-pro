@@ -29,7 +29,18 @@ pub const SHARP: &[i32] = &[
     VASE2,         // Demo House 0: blue vase, was softened into the wall
     FLOWER,        // Demo House 0: stem and petals keep their colours
     WALL_WINDOW,   // Demo House 0: frame and panes clean, were dotted
+    RED_CLOCK,     // Demo House 0: red case, black face, green digits; Braille showed a green face
+    BLUE_CLOCK,    // Art Museum 3: blue rim, white face, hands; Braille a white square
+    YELLOW_CLOCK,  // Demo House 38: bells and face read as an alarm clock
+    CUCKOO,        // Demo House 5: a solid wooden house with weights, was speckle
+    BATTERY,       // Demo House 1: dark top, orange body, as the art
+    FOIL,          // Art Museum 19: same colours, cleaner
+    STAR,          // Demo House 23: cleaner edges, same shape
+    HELIUM,        // Art Museum 33: green bottle with its label
 ];
+// Judged and kept in Braille: PAPER (Art Museum 5: the matcher draws glyph
+// noise on the sheet), BANDS (Demo House 1: sharp turns the green box
+// black; Braille keeps it, as in Glider).
 pub const PICTURE: &[i32] = &[
     CUSTOM_PICT, // Demo House 0: the quilt as in the original view; the matcher made glyph noise of it, Braille lost its dark diamonds
 ];
@@ -54,11 +65,6 @@ pub fn look(what: i32) -> Option<Look> {
     }
 }
 
-/// What the back map holds while a sharp object is drawn, so that every
-/// pixel it covers shows, even where the room's picture already had the
-/// same colour there (Demo House paints some objects into its walls).
-const SENTINEL: Rgb = [254, 1, 253];
-
 fn dark(c: Rgb) -> bool {
     c.iter().all(|&v| v < 64)
 }
@@ -72,29 +78,26 @@ impl Game {
         self.sharp_art = Some(tag);
     }
 
-    /// Before an object of a sharp kind is drawn: the back map as it was,
-    /// and the map filled with the sentinel.
+    /// Before an object of a sharp kind is drawn: the back map as it was
+    /// (for taking back the outline), and the map marking what it covers.
     pub fn begin_sharp_object(&mut self) -> Vec<Rgb> {
-        let before = self.back_src_map.px.clone();
-        self.back_src_map.px.fill(SENTINEL);
-        before
+        self.back_src_map.cover = vec![false; self.back_src_map.px.len()];
+        self.back_src_map.px.clone()
     }
 
-    /// After it was drawn: tag what it covered (the flag: a picture) and
-    /// put the rest back. A sharp object's dark outline (covered pixels
+    /// After it was drawn: tag what it covered (the flag: a picture). A sharp object's dark outline (covered pixels
     /// next to uncovered ones) is left out, as Glider's `Canvas::art`
     /// leaves it.
     pub fn tag_sharp_art(&mut self, before: &[Rgb], look: Look) {
         let m = &mut self.back_src_map;
         let b = m.bounds;
         let (w, h) = (b.width(), b.height());
-        let covered: Vec<bool> = m.px.iter().map(|&c| c != SENTINEL).collect();
+        let covered = std::mem::take(&mut m.cover);
         let mut n = 0;
         for y in 0..h {
             for x in 0..w {
                 let i = (y * w + x) as usize;
                 if !covered[i] {
-                    m.px[i] = before[i];
                     continue;
                 }
                 let edge = [(-1, 0), (1, 0), (0, -1), (0, 1)].iter().any(|&(dx, dy)| {

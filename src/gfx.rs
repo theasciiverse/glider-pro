@@ -110,6 +110,10 @@ pub struct Map {
     /// shape are a darker shade of the ink. Copies between maps that both
     /// keep it carry it along; a copy from one that doesn't clears it.
     pub fore: Vec<Option<(Rgb, bool)>>,
+    /// When not empty, every pixel written since it was begun is marked
+    /// (`game::sharp`: what one object covers, even in the colour that
+    /// was there).
+    pub cover: Vec<bool>,
 }
 
 /// A silhouette's ink where the art is dark.
@@ -122,7 +126,7 @@ impl Map {
     /// white is QuickDraw's back colour).
     pub fn new(r: Rect) -> Map {
         let n = (r.width().max(0) * r.height().max(0)) as usize;
-        Map { bounds: r, px: vec![WHITE; n], clip: r, pen: Pen::default(), ink: None, fore: Vec::new() }
+        Map { bounds: r, px: vec![WHITE; n], clip: r, pen: Pen::default(), ink: None, fore: Vec::new(), cover: Vec::new() }
     }
 
     /// Keep a silhouette layer (all clear) from now on.
@@ -197,6 +201,9 @@ impl Map {
             && let Some(i) = self.index(x, y)
         {
             self.px[i] = c;
+            if !self.cover.is_empty() {
+                self.cover[i] = true;
+            }
         }
     }
 
