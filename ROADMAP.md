@@ -14,12 +14,17 @@ to Rust, his files read directly. 1.0.0 is when everything below is in.
 - [x] Silhouette view (V), as Glider's
 - [x] The demo (D, or after two idle minutes)
 
-## 0.3.0
+## 0.3.0: built (2026-11-08)
 
 - [x] The demo replays as recorded (checked 2026-11-07)
-- [x] Silhouette view: flames inked; furniture flat with box-drawn edges, as Glider
+- [x] Silhouette view rebuilt: Calhoun's art in half blocks, moving things sharp
+  over it through the shape matcher (Glider's flat furniture and blur dropped)
 - [x] Two-player games: 2 on the title, A D S W for the second player
 - [x] A house file from disk
+- [x] Preview cast re-recorded in the new view
+
+## 0.4.0
+
 - [ ] Played through by hand, house by house
 
 ## Later
