@@ -88,6 +88,18 @@ pub const SHARP: &[i32] = &[
     FAUCET,        // CD Demo House 179: the taps; Braille white blobs
     RUG,           // Art Museum 33: cleaner
     CHIMES,        // CD Demo House 2: clean tubes and hanger
+    GREASE_RT,     // Demo House 1: the jar, its blue lid and label; Braille white dots
+    GREASE_LF,     // Art Museum 32: as GREASE_RT
+    FLOOR_TRANS,   // Art Museum 0: cleaner
+    CEILING_TRANS, // Art Museum 8: cleaner
+    DOOR_IN_LF,    // CD Demo House 143: crisp panels and knocker; as a picture it blurs
+    DOOR_IN_RT,    // ImagineHouse PRO II 45: as DOOR_IN_LF
+    DOOR_EX_RT,    // CD Demo House 142: clean frame
+    DOOR_EX_LF,    // ImagineHouse PRO II 26: clean frame
+    WINDOW_IN_LF,  // CD Demo House 34: clean frame and pane
+    WINDOW_IN_RT,  // Demo House 5: clean frame and pane
+    WINDOW_EX_RT,  // CD Demo House 33: clean frame
+    WINDOW_EX_LF,  // Demo House 7: clean frame
 ];
 // Judged and kept in Braille: PAPER (Art Museum 5: the matcher draws glyph
 // noise on the sheet), BANDS (Demo House 1: sharp turns the green box
@@ -97,6 +109,10 @@ pub const PICTURE: &[i32] = &[
     CUSTOM_PICT, // Demo House 0: the quilt as in the original view; the matcher made glyph noise of it, Braille lost its dark diamonds
     OZMA,        // Art Museum 37: the portrait recognisable; the matcher made lines of the face
     CALENDAR,    // Demo House 2: keeps the month grid; sharp drew white bars
+    UP_STAIRS,   // Demo House 4: as the original view; sharp drew a column of [[[ on the lit edge
+    DOWN_STAIRS, // Demo House 5: as the original view, clean rail and steps
+    MAILBOX_LF,  // CD Demo House 69: name plates read as blurred lettering, not pseudo-letters
+    MAILBOX_RT,  // CD Demo House 0: as MAILBOX_LF
 ];
 
 fn listed(var: &'static str, what: i32, default: &[i32]) -> bool {
