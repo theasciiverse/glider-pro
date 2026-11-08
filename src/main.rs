@@ -643,14 +643,17 @@ fn play(slot: &mut Option<Box<Term>>, g: &mut Game, settings: &mut Settings) {
             }
             term.input.keys(Instant::now(), &mut g.keys);
         }
+        let t0 = Instant::now();
         if !g.paused && g.playing {
             g.ticks += game::TICKS_PER_FRAME;
             lend(slot, g, |g| g.play_game_frame());
             g.keys.quit = false;
         }
+        let t1 = Instant::now();
         let term = slot.as_mut().expect("terminal");
         term.service_audio(g);
         term.draw(g);
+        log::debug!(target: "glider_pro::frame", "frame: game {:?} draw {:?} late {:?}", t1 - t0, t1.elapsed(), t0.saturating_duration_since(next));
         next += TICK * game::TICKS_PER_FRAME as u32;
         let now = Instant::now();
         if next < now {
