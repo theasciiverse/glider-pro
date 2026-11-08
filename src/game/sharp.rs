@@ -65,6 +65,29 @@ pub const SHARP: &[i32] = &[
     RIGHT_FAN,     // CD Demo House 5: the black fan stand, as the art
     GRECO_VENT,    // Demo House 15: the grille; Braille nearly lost it
     SEWER_BLOWER,  // CD Demo House 50: cleaner
+    TAPER,         // Demo House 5: clean holders (flames are inked anyway)
+    CANDLE,        // Demo House 2: white candle, orange base
+    STUBBY,        // Art Museum 32: clean red and white candles
+    TIKI,          // CD Demo House 76: clean pole and bowl
+    BBQ,           // CD Demo House 76: the grill and its coals
+    FILING_CABINET, // CD Demo House 120: drawers and handles
+    WASTE_BASKET,  // CD Demo House 3: cleaner
+    MILK_CRATE,    // Demo House 1: cleaner
+    STOOL,         // Demo House 1: red-topped stools; Braille softened them into the wall picture
+    TRUNK,         // Demo House 38: the chest and its clasp
+    MANHOLE,       // Demo House 14: the dark curve
+    BOOKS,         // Demo House 2: the spines keep their colours (unlike Glider's)
+    CINDER_BLOCK,  // California or Bust! 6: cleaner
+    FLOWER_BOX,    // CD Demo House 142: cleaner
+    COBWEB,        // Art Museum 7: thin lines; Braille white noise
+    MOUSEHOLE,     // CD Demo House 175: clean
+    BEAR,          // Demo House 4: clean
+    VASE1,         // Demo House 2: the white vase, clean
+    BULLETIN,      // Demo House 4: crisp notes on cork; as a picture they blur
+    FIREPLACE,     // Demo House 5: mantel and firebox; Braille softened it into the wall picture
+    FAUCET,        // CD Demo House 179: the taps; Braille white blobs
+    RUG,           // Art Museum 33: cleaner
+    CHIMES,        // CD Demo House 2: clean tubes and hanger
 ];
 // Judged and kept in Braille: PAPER (Art Museum 5: the matcher draws glyph
 // noise on the sheet), BANDS (Demo House 1: sharp turns the green box
@@ -72,6 +95,8 @@ pub const SHARP: &[i32] = &[
 // sharp makes one black block of the speakers; Braille keeps their cones).
 pub const PICTURE: &[i32] = &[
     CUSTOM_PICT, // Demo House 0: the quilt as in the original view; the matcher made glyph noise of it, Braille lost its dark diamonds
+    OZMA,        // Art Museum 37: the portrait recognisable; the matcher made lines of the face
+    CALENDAR,    // Demo House 2: keeps the month grid; sharp drew white bars
 ];
 
 fn listed(var: &'static str, what: i32, default: &[i32]) -> bool {
