@@ -148,6 +148,12 @@ scoreboard's figures (room, gliders, score) are shown as the status line
   The view (`Canvas::sharpen_art`) takes a tagged pixel only while the picture still
   shows that colour, so a collected or erased object drops out. Objects redrawn later
   on their own (a switch flipped) keep the tags from the room's drawing.
+  Decided overnight 2026-11-08 for every visible kind, each from crops of a room it is
+  in (braille, the look, the original view side by side; the reason is a comment beside
+  each kind in `sharp.rs`). Picture: custom pictures, Ozma, calendar, stairs, mailboxes.
+  Kept in Braille: paper, rubber bands, stereo. Sharp: everything else visible. Not
+  affected: invisible kinds, things already inked (balloons, darts, copters, ball, drip,
+  fish, flames, toast) and the flat furniture. Test: `house_objects_keep_their_art`.
 
 ## Controls
 
