@@ -1,6 +1,6 @@
 [package]
 name = "glider-pro"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.88"
 description = "Glider PRO (John Calhoun, 1994) in the terminal: the paper glider through a house of hundreds of rooms, for the Asciiverse catalog"
